@@ -1,4 +1,4 @@
-.PHONY: test test-ci lint typecheck db-up db-down db-logs db-status db-drop db-dump db-up-test db-down-test cleanup-workers docs2db list all
+.PHONY: test test-ci lint typecheck db-up db-down db-logs db-status db-drop db-dump db-restore db-up-test db-down-test docs2db list all
 
 # Default source directory for docs2db target
 SOURCE ?= tests/fixtures/input
@@ -13,10 +13,10 @@ lint:
 	uv run ruff check --fix --exclude content --exclude external_sources
 	uv run ruff format --diff --exclude content --exclude external_sources || true
 	uv run ruff format --exclude content --exclude external_sources
-	uv run pyright src/docs2db
+	uv run pyright src/docs2db_api
 
 typecheck:
-	uv run pyright src/docs2db
+	uv run pyright src/docs2db_api
 
 db-up:
 	podman compose -f postgres-compose.yml --profile prod --profile tools up -d
@@ -28,14 +28,18 @@ db-logs:
 	podman compose -f postgres-compose.yml logs -f db
 
 db-status:
-	uv run docs2db db-status
+	uv run docs2db-api db-status
 
 db-drop:
 	$(MAKE) db-down
 	podman volume rm docs2db_pgdata || true
 
 db-dump:
-	uv run docs2db db-dump
+	uv run docs2db-api db-dump
+
+db-restore:
+	uv run docs2db-api db-restore $(FILE)
+
 # Test database targets (using profiles)
 db-up-test:
 	podman compose -f postgres-compose.yml --profile test up -d
@@ -64,7 +68,8 @@ list:
 	@echo "  db-down      - Stop production database"
 	@echo "  db-status    - Check database status"
 	@echo "  db-dump      - Create database dump"
+	@echo "  db-restore   - Restore database from dump file"
+	@echo "                 Usage: make db-restore FILE=/path/to/dump.sql"
 	@echo "  db-drop      - Stop database and remove data"
-	@echo "  cleanup-workers - Clean up any orphaned worker processes"
 
 all: lint test typecheck

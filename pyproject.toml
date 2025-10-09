@@ -1,9 +1,9 @@
 [project]
-name = "docs2db"
+name = "docs2db-api"
 version = "0.1.0"
-description = "Repository of docling documents for RAG"
+description = "Serve a Docs2DB database for RAG"
 readme = "README.md"
-authors = [{ name = "Major Hayden", email = "major@redhat.com" }]
+authors = [{ name = "Ellis Low", email = "elow@redhat.com" }]
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "cachetools>=6.1.0",
@@ -26,7 +26,7 @@ dependencies = [
 ]
 
 [project.scripts]
-docs2db = "docs2db.docs2db:app"
+docs2db-api = "docs2db_api.docs2db_api:app"
 
 [build-system]
 requires = ["uv_build>=0.8.2,<0.9.0"]
@@ -63,7 +63,7 @@ dev = [
 
 [tool.pytest.ini_options]
 addopts = [
-    "--cov=docs2db",
+    "--cov=docs2db-api",
     "--cov-report=term-missing",
     "--cov-report=html",
     "--cov-report=xml",
