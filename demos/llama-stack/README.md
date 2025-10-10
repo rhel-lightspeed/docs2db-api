@@ -16,8 +16,7 @@ This directory contains comprehensive demonstrations of Docs2DB-API RAG integrat
 Create a fresh Llama Stack environment with Docs2DB-API RAG:
 
 ```bash
-# Basic setup (for direct tool calling)
-python setup_fresh_llama_stack.py my-demo-dir
+uv run python setup_fresh_llama_stack.py my-demo-dir
 ```
 
 ### 2. Start Server
@@ -31,12 +30,12 @@ uv run python start_server.py
 
 **Direct Tool Calling Demo:**
 ```bash
-python client.py
+uv run python client.py
 ```
 
 **Agent Tool Calling Demo:**
 ```bash
-python agent_tool_calling_client.py
+uv run python agent_tool_calling_client.py
 ```
 
 ## Details

@@ -3,14 +3,15 @@
 Setup Fresh Llama Stack Environment
 ===================================
 
-This script creates a completely fresh, isolated Llama Stack environment in a target directory.
-It sets up uv, installs llama-stack, and creates a local distribution configuration.
+This script creates a completely fresh, isolated Llama Stack environment
+in a target directory. It sets up uv, installs llama-stack, and creates a
+local distribution configuration.
 
 Usage:
     python setup_fresh_llama_stack.py <target_directory>
 
 Example:
-    python setup_fresh_llama_stack.py codex-llama-stack-3
+    python setup_fresh_llama_stack.py docs2db-llama-stack-3
 """
 
 import argparse
@@ -28,7 +29,9 @@ def run_command(cmd, cwd=None, check=True):
     if isinstance(cmd, str):
         cmd = cmd.split()
 
-    result = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, check=False)
+    result = subprocess.run(
+        cmd, cwd=cwd, capture_output=True, text=True, check=False
+    )
 
     if result.returncode != 0 and check:
         print(f"❌ Command failed: {' '.join(cmd)}")
@@ -100,19 +103,22 @@ def install_llama_stack(target_path):
     )
 
 
-def install_codex_rag(target_path):
-    """Install Codex RAG package and dependencies"""
-    print(f"\n📦 Installing Codex RAG in {target_path}")
+def install_docs2db_rag(target_path):
+    """Install Docs2DB RAG package and dependencies"""
+    print(f"\n📦 Installing Docs2DB RAG in {target_path}")
     
-    # Get the path to the codex package (parent of this script's directory)
+    # Get the path to the docs2db package (parent of this script's directory)
     script_dir = Path(__file__).parent
-    codex_path = script_dir.parent.parent  # Go up from demos/llama-stack to codex root
+    # Go up from demos/llama-stack to docs2db root
+    docs2db_path = script_dir.parent.parent
     
-    print(f"📦 Installing Codex from: {codex_path}")
-    run_command(["uv", "add", "--editable", str(codex_path)], cwd=target_path)
+    print(f"📦 Installing Docs2DB from: {docs2db_path}")
+    run_command(
+        ["uv", "add", "--editable", str(docs2db_path)], cwd=target_path
+    )
     
-    # Install Codex-specific dependencies
-    print("📦 Installing Codex RAG dependencies...")
+    # Install Docs2DB-specific dependencies
+    print("📦 Installing Docs2DB RAG dependencies...")
     run_command(
         [
             "uv",
@@ -128,20 +134,20 @@ def install_codex_rag(target_path):
     )
 
 
-def setup_codex_rag_provider(target_path):
-    """Set up Codex RAG provider configuration"""
-    print(f"\n⚙️  Setting up Codex RAG provider in {target_path}")
+def setup_docs2db_rag_provider(target_path):
+    """Set up Docs2DB RAG provider configuration"""
+    print(f"\n⚙️  Setting up Docs2DB RAG provider in {target_path}")
     
     # Create provider configuration directory
     config_dir = target_path / "llama-config"
     providers_dir = config_dir / "providers.d" / "inline" / "tool_runtime"
     providers_dir.mkdir(parents=True, exist_ok=True)
     
-    # Create Codex RAG provider configuration
-    codex_rag_config = {
-        "config_class": "codex.rag.llama_stack.CodexRAGConfig",
+    # Create Docs2DB RAG provider configuration
+    docs2db_rag_config = {
+        "config_class": "docs2db.rag.llama_stack.Docs2DBRAGConfig",
         "container_image": None,
-        "module": "codex.rag.llama_stack",
+        "module": "docs2db.rag.llama_stack",
         "pip_packages": [
             "psycopg2-binary",
             "transformers", 
@@ -154,15 +160,17 @@ def setup_codex_rag_provider(target_path):
     }
     
     # Write provider config
-    provider_config_file = providers_dir / "codex_rag.yaml"
+    provider_config_file = providers_dir / "docs2db_rag.yaml"
     with open(provider_config_file, "w") as f:
-        yaml.dump(codex_rag_config, f, default_flow_style=False, sort_keys=False)
+        yaml.dump(
+            docs2db_rag_config, f, default_flow_style=False, sort_keys=False
+        )
     
-    print(f"✅ Created Codex RAG provider config: {provider_config_file}")
+    print(f"✅ Created Docs2DB RAG provider config: {provider_config_file}")
     return provider_config_file
 
 
-def create_distribution_config(target_path, include_agents=False):
+def create_distribution_config(target_path):
     """Create the llama-stack distribution configuration"""
     print(f"\n⚙️  Creating distribution configuration in {target_path}")
 
@@ -179,7 +187,7 @@ def create_distribution_config(target_path, include_agents=False):
     # Create the distribution configuration
     distribution = {
         "version": 2,
-        "image_name": "codex-rag-demo",
+        "image_name": "docs2db-rag-demo",
         "external_providers_dir": str(providers_dir.parent.parent),
         "apis": [
             "agents",
@@ -199,7 +207,9 @@ def create_distribution_config(target_path, include_agents=False):
                 {
                     "provider_id": "ollama",
                     "provider_type": "remote::ollama",
-                    "config": {"url": "${env.OLLAMA_URL:=http://localhost:11434}"},
+                    "config": {
+                        "url": "${env.OLLAMA_URL:=http://localhost:11434}"
+                    },
                 },
                 {
                     "provider_id": "openai",
@@ -268,7 +278,7 @@ def create_distribution_config(target_path, include_agents=False):
                     "provider_id": "meta-reference",
                     "provider_type": "inline::meta-reference",
                     "config": {
-                        "service_name": "${env.OTEL_SERVICE_NAME:=codex-rag-demo}",
+                        "service_name": "${env.OTEL_SERVICE_NAME:=docs2db-rag-demo}",
                         "sinks": "${env.TELEMETRY_SINKS:=console,sqlite}",
                         "sqlite_db_path": str(data_dir / "trace_store.db"),
                         "otel_exporter_otlp_endpoint": "${env.OTEL_EXPORTER_OTLP_ENDPOINT:=}",
@@ -299,18 +309,20 @@ def create_distribution_config(target_path, include_agents=False):
                     },
                 }
             ],
-            "scoring": [{"provider_id": "basic", "provider_type": "inline::basic"}],
+            "scoring": [
+                {"provider_id": "basic", "provider_type": "inline::basic"}
+            ],
             "tool_runtime": [
                 {
-                    "provider_id": "codex-rag",
-                    "provider_type": "inline::codex_rag",
+                    "provider_id": "docs2db-rag",
+                    "provider_type": "inline::docs2db_rag",
                     "config": {
-                        "model_name": "${env.CODEX_RAG_MODEL:=granite-30m-english}",
-                        "similarity_threshold": "${env.CODEX_RAG_SIMILARITY_THRESHOLD:=0.7}",
-                        "max_chunks": "${env.CODEX_RAG_MAX_CHUNKS:=5}",
-                        "max_tokens_in_context": "${env.CODEX_RAG_MAX_TOKENS:=4096}",
-                        "enable_question_refinement": "${env.CODEX_RAG_ENABLE_REFINEMENT:=true}",
-                        "enable_hybrid_search": "${env.CODEX_RAG_ENABLE_HYBRID:=true}",
+                        "model_name": "${env.DOCS2DB_RAG_MODEL:=granite-30m-english}",
+                        "similarity_threshold": "${env.DOCS2DB_RAG_SIMILARITY_THRESHOLD:=0.7}",
+                        "max_chunks": "${env.DOCS2DB_RAG_MAX_CHUNKS:=5}",
+                        "max_tokens_in_context": "${env.DOCS2DB_RAG_MAX_TOKENS:=4096}",
+                        "enable_question_refinement": "${env.DOCS2DB_RAG_ENABLE_REFINEMENT:=true}",
+                        "enable_hybrid_search": "${env.DOCS2DB_RAG_ENABLE_HYBRID:=true}",
                     }
                 }
             ],
@@ -351,34 +363,16 @@ def create_distribution_config(target_path, include_agents=False):
         ],
         "tool_groups": [
             {
-                "toolgroup_id": "codex::rag", 
-                "provider_id": "codex-rag"
+                "toolgroup_id": "docs2db::rag", 
+                "provider_id": "docs2db-rag"
             }
         ],
         "server": {"port": "${env.LLAMA_STACK_PORT:=8321}"},
     }
     
-    # Add agents configuration if requested
-    if include_agents:
-        print("🤖 Adding pre-configured agents for tool calling demos...")
-        distribution["agents"] = [
-            {
-                "agent_id": "qwen-rag-agent",
-                "provider_id": "meta-reference",
-                "config": {
-                    "model": "ollama/qwen2.5:7b-instruct",
-                    "instructions": "You are a helpful assistant with access to search tools. When asked a question, you MUST use the search_documents tool to find relevant information before answering. Always search first, then provide a comprehensive answer based on the search results.",
-                    "max_infer_iters": 5,
-                    "tool_choice": "auto",
-                    "tool_prompt_format": "function_tag",
-                    "enable_session_persistence": True
-                },
-                "tool_groups": ["codex::rag"]
-            }
-        ]
 
     # Write the distribution file
-    dist_file = target_path / "codex-distribution-local.yaml"
+    dist_file = target_path / "docs2db-distribution-local.yaml"
     with open(dist_file, "w") as f:
         yaml.dump(distribution, f, default_flow_style=False, sort_keys=False)
 
@@ -395,7 +389,8 @@ def create_startup_script(target_path):
 Start Llama Stack Server
 ========================
 
-This script starts the Llama Stack server using the local distribution configuration.
+This script starts the Llama Stack server using the local distribution
+configuration.
 """
 
 import subprocess
@@ -407,7 +402,7 @@ def main():
     script_dir = Path(__file__).parent
     
     # Distribution file path
-    dist_file = script_dir / "codex-distribution-local.yaml"
+    dist_file = script_dir / "docs2db-distribution-local.yaml"
     
     if not dist_file.exists():
         print(f"❌ Distribution file not found: {{dist_file}}")
@@ -446,10 +441,10 @@ if __name__ == "__main__":
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Setup fresh Llama Stack environment")
+    parser = argparse.ArgumentParser(
+        description="Setup fresh Llama Stack environment"
+    )
     parser.add_argument("target_directory", help="Directory to create/setup")
-    parser.add_argument("--include-agents", action="store_true", 
-                       help="Include pre-configured agents for tool calling demos")
 
     args = parser.parse_args()
 
@@ -466,34 +461,34 @@ def main():
         # Step 3: Install llama-stack
         install_llama_stack(target_path)
 
-        # Step 4: Install Codex RAG
-        install_codex_rag(target_path)
+        # Step 4: Install Docs2DB RAG
+        install_docs2db_rag(target_path)
 
-        # Step 5: Setup Codex RAG provider
-        setup_codex_rag_provider(target_path)
+        # Step 5: Setup Docs2DB RAG provider
+        setup_docs2db_rag_provider(target_path)
 
         # Step 6: Create distribution config (now with RAG)
-        dist_file = create_distribution_config(target_path, args.include_agents)
+        dist_file = create_distribution_config(target_path)
 
         # Step 7: Create startup script
         startup_script = create_startup_script(target_path)
 
-        print(f"\n🎉 SUCCESS! Fresh Llama Stack + Codex RAG environment ready!")
+        print(f"\n🎉 SUCCESS! Fresh Llama Stack + Docs2DB RAG environment ready!")
         print(f"📁 Location: {target_path}")
         print(f"📋 Distribution: {dist_file}")
         print(f"🚀 Startup script: {startup_script}")
         print()
         print("✅ Configured Features:")
         print("  • Llama Stack server with Ollama integration")
-        print("  • Codex RAG with search_documents and search_and_generate tools")
+        print("  • Docs2DB RAG with search_documents and search_and_generate tools")
         print("  • RAG Features: Similarity Post Processing, Hybrid Search, Query Refinement")
-        print("  • Tool Group: codex::rag available for agents")
+        print("  • Tool Group: docs2db::rag available for agents")
         print()
         print("Next steps:")
         print(f"  1. cd {args.target_directory}")
         print(f"  2. uv run python start_server.py")
         print("  3. Server will be available at http://localhost:8321")
-        print("  4. Use codex/demos/llama-stack/client.py to test RAG features")
+        print("  4. Use docs2db/demos/llama-stack/client.py to test RAG features")
 
     except Exception as e:
         print(f"❌ Setup failed: {e}")
