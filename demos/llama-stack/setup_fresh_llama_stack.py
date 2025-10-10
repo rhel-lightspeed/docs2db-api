@@ -145,9 +145,9 @@ def setup_docs2db_rag_provider(target_path):
     
     # Create Docs2DB RAG provider configuration
     docs2db_rag_config = {
-        "config_class": "docs2db.rag.llama_stack.Docs2DBRAGConfig",
+        "config_class": "docs2db_api.rag.llama_stack.Docs2DBRAGConfig",
         "container_image": None,
-        "module": "docs2db.rag.llama_stack",
+        "module": "docs2db_api.rag.llama_stack",
         "pip_packages": [
             "psycopg2-binary",
             "transformers", 
