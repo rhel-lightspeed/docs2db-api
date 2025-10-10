@@ -12,6 +12,7 @@ from docs2db_api.database import (
     restore_database,
 )
 from docs2db_api.exceptions import Docs2DBException
+from docs2db_api.rag.engine import RAGConfig, UniversalRAGEngine
 
 logger = structlog.get_logger(__name__)
 
@@ -142,5 +143,72 @@ def manifest(
             raise typer.Exit(1)
     except Docs2DBException as e:
         logger.error(str(e))
+        raise typer.Exit(1)
+
+
+@app.command()
+def query(
+    query_text: Annotated[str, typer.Argument(help="Search query")],
+    model: Annotated[
+        str,
+        typer.Option(help="Embedding model to use"),
+    ] = "granite-30m-english",
+    limit: Annotated[int, typer.Option(help="Maximum number of results")] = 10,
+    threshold: Annotated[
+        float, typer.Option(help="Similarity threshold (0.0-1.0)")
+    ] = 0.7,
+    refine: Annotated[
+        bool, typer.Option(help="Enable question refinement")
+    ] = True,
+    hybrid: Annotated[
+        bool, typer.Option(help="Enable hybrid search")
+    ] = True,
+) -> None:
+    """Search documents using RAG engine."""
+    try:
+        config = RAGConfig(
+            model_name=model,
+            similarity_threshold=threshold,
+            max_chunks=limit,
+            enable_question_refinement=refine,
+            enable_hybrid_search=hybrid,
+        )
+
+        async def run_query():
+            engine = UniversalRAGEngine(config)
+            try:
+                logger.info("🔍 Searching", query=query_text, model=model, threshold=threshold, limit=limit)
+                logger.info("=" * 60)
+
+                result = await engine.search_documents(query_text)
+
+                logger.info("✅ Found documents", count=len(result.documents))
+
+                if result.metadata:
+                    metadata_lines = ["📈 Metadata:"]
+                    for key, value in result.metadata.items():
+                        metadata_lines.append(f"{key:<20} {value}")
+                    logger.info("\n".join(metadata_lines))
+
+                if result.refined_questions:
+                    logger.info("🎯 Refined Questions", questions=result.refined_questions)
+
+                logger.info("📄 Documents found")
+                for i, doc in enumerate(result.documents, 1):
+                    text_preview = doc['text'][:300] + ('...' if len(doc['text']) > 300 else '')
+                    logger.info(
+                        f"Document\n{text_preview}",
+                        index=i,
+                        similarity=doc['similarity_score'],
+                        source=doc['document_path']
+                    )
+
+            finally:
+                await engine.close()
+
+        asyncio.run(run_query())
+
+    except Exception as e:
+        logger.error(f"Query failed: {e}")
         raise typer.Exit(1)
 

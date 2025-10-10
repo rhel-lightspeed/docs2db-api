@@ -6,27 +6,18 @@ RAG CLI Interface
 Command-line interface for testing and using the Universal RAG Engine.
 Useful for development, testing, and simple integrations.
 
-Usage:
-    python -m codex.rag.cli search "How do I configure SSH?"
-    python -m codex.rag.cli test
-    python -m codex.rag.cli server --port 8000
 """
 
 import argparse
 import asyncio
-import json
-import logging
 import sys
-from typing import Optional
 
-from codex.embeddings import EMBEDDING_CONFIGS
-from codex.rag.engine import RAGConfig, UniversalRAGEngine
+import structlog
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
+from docs2db_api.embeddings import EMBEDDING_CONFIGS
+from docs2db_api.rag.engine import RAGConfig, UniversalRAGEngine
+
+logger = structlog.get_logger(__name__)
 
 
 async def search_command(args):
@@ -42,35 +33,31 @@ async def search_command(args):
     engine = UniversalRAGEngine(config)
 
     try:
-        print(f"🔍 Searching: {args.query}")
-        print(
-            f"📊 Model: {args.model}, Threshold: {args.threshold}, Limit: {args.limit}"
-        )
-        print("=" * 60)
+        logger.info("🔍 Searching", query=args.query, model=args.model, threshold=args.threshold, limit=args.limit)
+        logger.info("=" * 60)
 
         result = await engine.search_documents(args.query)
 
-        print(f"✅ Found {len(result.documents)} documents")
+        logger.info("✅ Found documents", count=len(result.documents))
 
         if result.refined_questions:
-            print(f"\n🎯 Refined Questions:\n{result.refined_questions}")
+            logger.info("🎯 Refined Questions", questions=result.refined_questions)
 
-        print(f"\n📄 Documents:")
+        logger.info("📄 Documents found")
         for i, doc in enumerate(result.documents, 1):
-            print(f"\n{i}. Similarity: {doc['similarity_score']:.3f}")
-            print(f"   Source: {doc['document_path']}")
-            print(
-                f"   Text: {doc['text'][:300]}{'...' if len(doc['text']) > 300 else ''}"
+            logger.info(
+                "Document",
+                index=i,
+                similarity=doc['similarity_score'],
+                source=doc['document_path'],
+                text_preview=doc['text'][:300] + ('...' if len(doc['text']) > 300 else '')
             )
 
         if result.metadata:
-            print(f"\n📈 Metadata:")
-            for key, value in result.metadata.items():
-                if key != "documents_details":  # Skip verbose details
-                    print(f"   {key}: {value}")
+            logger.info("📈 Metadata", metadata=result.metadata)
 
     except Exception as e:
-        print(f"❌ Search failed: {e}")
+        logger.error("❌ Search failed", error=str(e))
         return 1
     finally:
         await engine.close()
@@ -80,8 +67,8 @@ async def search_command(args):
 
 async def test_command(args):
     """Handle test command"""
-    print("🧪 Running RAG Engine Tests")
-    print("=" * 60)
+    logger.info("🧪 Running RAG Engine Tests")
+    logger.info("=" * 60)
 
     test_queries = [
         "How do I configure SSH on RHEL?",
@@ -102,25 +89,25 @@ async def test_command(args):
 
     try:
         for i, query in enumerate(test_queries, 1):
-            print(f"\n🔍 Test {i}: {query}")
+            logger.info("🔍 Test query", test_number=i, query=query)
 
             try:
                 result = await engine.search_documents(query)
-                print(f"   ✅ Found {len(result.documents)} documents")
+                logger.info("✅ Test result", documents_found=len(result.documents))
 
                 if result.documents:
                     best_score = max(
                         doc["similarity_score"] for doc in result.documents
                     )
-                    print(f"   📊 Best similarity: {best_score:.3f}")
+                    logger.info("📊 Best similarity", score=best_score)
 
             except Exception as e:
-                print(f"   ❌ Failed: {e}")
+                logger.error("❌ Test failed", error=str(e))
 
-        print(f"\n✅ Test completed successfully")
+        logger.info("✅ Test completed successfully")
 
     except Exception as e:
-        print(f"❌ Test failed: {e}")
+        logger.error("❌ Test failed", error=str(e))
         return 1
     finally:
         await engine.close()
@@ -130,8 +117,8 @@ async def test_command(args):
 
 async def benchmark_command(args):
     """Handle benchmark command"""
-    print("⚡ Running RAG Engine Benchmark")
-    print("=" * 60)
+    logger.info("⚡ Running RAG Engine Benchmark")
+    logger.info("=" * 60)
 
     import time
 
@@ -162,23 +149,21 @@ async def benchmark_command(args):
             if i % 10 == 0:
                 elapsed = time.time() - start_time
                 rate = i / elapsed
-                print(
-                    f"   Processed {i}/{len(queries)} queries ({rate:.1f} queries/sec)"
-                )
+                logger.info("Benchmark progress", processed=i, total=len(queries), rate=rate)
 
         end_time = time.time()
         elapsed = end_time - start_time
 
-        print(f"\n📊 Benchmark Results:")
-        print(f"   Total queries: {len(queries)}")
-        print(f"   Total time: {elapsed:.2f} seconds")
-        print(f"   Average time per query: {elapsed / len(queries):.3f} seconds")
-        print(f"   Queries per second: {len(queries) / elapsed:.1f}")
-        print(f"   Total documents retrieved: {total_docs}")
-        print(f"   Average documents per query: {total_docs / len(queries):.1f}")
+        logger.info("📊 Benchmark Results", 
+                   total_queries=len(queries),
+                   total_time=elapsed,
+                   avg_time_per_query=elapsed / len(queries),
+                   queries_per_second=len(queries) / elapsed,
+                   total_documents=total_docs,
+                   avg_documents_per_query=total_docs / len(queries))
 
     except Exception as e:
-        print(f"❌ Benchmark failed: {e}")
+        logger.error("❌ Benchmark failed", error=str(e))
         return 1
     finally:
         await engine.close()
@@ -188,22 +173,20 @@ async def benchmark_command(args):
 
 async def server_command(args):
     """Handle server command"""
-    print(f"🚀 Starting RAG API Server on port {args.port}")
+    logger.info("🚀 Starting RAG API Server", port=args.port)
 
     try:
         import uvicorn
 
-        from codex.rag.api import app
+        from docs2db.rag.api import app
 
         uvicorn.run(app, host=args.host, port=args.port, log_level="info")
 
     except ImportError:
-        print(
-            "❌ FastAPI/uvicorn not available. Install with: pip install fastapi uvicorn"
-        )
+        logger.error("❌ FastAPI/uvicorn not available. Install with: pip install fastapi uvicorn")
         return 1
     except Exception as e:
-        print(f"❌ Server failed: {e}")
+        logger.error("❌ Server failed", error=str(e))
         return 1
 
     return 0
@@ -211,16 +194,16 @@ async def server_command(args):
 
 def models_command(args):
     """Handle models command"""
-    print("📋 Available Embedding Models")
-    print("=" * 60)
+    logger.info("📋 Available Embedding Models")
+    logger.info("=" * 60)
 
     for model_name, config in EMBEDDING_CONFIGS.items():
-        print(f"\n{model_name}:")
-        print(f"   Model ID: {config['model_id']}")
-        print(f"   Dimensions: {config['dimensions']}")
-        print(f"   Provider: {config['provider']}")
-        print(f"   Batch Size: {config['batch_size']}")
-        print(f"   Keyword: {config['keyword']}")
+        logger.info("Model configuration", 
+                   name=model_name,
+                   model_id=config['model_id'],
+                   dimensions=config['dimensions'],
+                   provider=config['provider'],
+                   keyword=config['keyword'])
 
     return 0
 
@@ -301,7 +284,7 @@ def main():
     elif args.command == "models":
         return models_command(args)
     else:
-        print(f"Unknown command: {args.command}")
+        logger.error("Unknown command", command=args.command)
         return 1
 
 
@@ -309,8 +292,8 @@ if __name__ == "__main__":
     try:
         sys.exit(main())
     except KeyboardInterrupt:
-        print("\n👋 Interrupted by user")
+        logger.info("👋 Interrupted by user")
         sys.exit(130)
     except Exception as e:
-        print(f"❌ Unexpected error: {e}")
+        logger.error("❌ Unexpected error", error=str(e))
         sys.exit(1)

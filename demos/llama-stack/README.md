@@ -67,3 +67,5 @@ Creates an isolated installation of Llama Stack with Docs2DB-API RAG preconfigur
 4. **Configures providers** - Sets up Docs2DB RAG as Llama Stack tool runtime provider
 5. **Creates distribution** - YAML configuration for Ollama + Docs2DB RAG integration
 6. **Generates startup script** - Ready-to-use server startup script `start_server.py`
+
+Note that the fresh installation holds a reference back to this code base (the one holding this README from where you called `setup_fresh_llama_stack.py`) so  changes to this code base will be seen in the Llama Stack installation.

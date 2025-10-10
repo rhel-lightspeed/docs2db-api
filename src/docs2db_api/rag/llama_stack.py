@@ -13,50 +13,49 @@ Features:
 - Native Llama Stack tool integration
 - Server-side RAG execution
 - Compatible with existing Llama Stack clients
-- Uses Codex database and Granite embeddings
+- Uses Docs2DB database and Granite embeddings
 - Configurable model selection
 
 Usage:
     # In Llama Stack configuration
     providers:
       tool_runtime:
-        - provider_id: codex_rag
+        - provider_id: docs2db_rag
           provider_type: inline
           config:
-            module: codex.rag.llama_stack
-            config_class: CodexRAGConfig
+            module: docs2db.rag.llama_stack
+            config_class: Docs2DBRAGConfig
 """
 
 import asyncio
-import logging
 import os
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
+
+import structlog
 
 # Add threading safety for ML libraries
 os.environ['OMP_NUM_THREADS'] = '1'
 os.environ['MKL_NUM_THREADS'] = '1'
 os.environ['TOKENIZERS_PARALLELISM'] = 'false'
 
-from codex.embeddings import EMBEDDING_CONFIGS
-from codex.rag.engine import RAGConfig, UniversalRAGEngine, OllamaLLMClient
+from docs2db_api.embeddings import EMBEDDING_CONFIGS
+from docs2db_api.rag.engine import RAGConfig, UniversalRAGEngine, OllamaLLMClient
+
+logger = structlog.get_logger(__name__)
 
 # Set torch threading after import
 try:
     import torch
     torch.set_num_threads(1)
-    logging.info("🔧 Set PyTorch to single-threaded mode")
+    logger.info("🔧 Set PyTorch to single-threaded mode")
 except ImportError:
-    logging.info("🔧 PyTorch not available, skipping thread configuration")
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+    logger.info("🔧 PyTorch not available, skipping thread configuration")
 
 
 @dataclass
-class CodexRAGConfig:
-    """Configuration for Codex RAG Provider"""
+class Docs2DBRAGConfig:
+    """Configuration for Docs2DB RAG Provider"""
 
     model_name: str = "granite-30m-english"
     similarity_threshold: float = 0.7
@@ -114,20 +113,20 @@ except ImportError:
             self.data = data
 
 
-class CodexRAGAdapter(ToolRuntime):
+class Docs2DBRAGAdapter(ToolRuntime):
     """
-    Codex RAG Tool Runtime Adapter for Llama Stack
+    Docs2DB RAG Tool Runtime Adapter for Llama Stack
 
     This adapter wraps the Universal RAG Engine to make it available
     as built-in Llama Stack tools for server-side RAG execution.
     """
 
-    def __init__(self, config: CodexRAGConfig):
+    def __init__(self, config: Docs2DBRAGConfig):
         self.config = config
         self.rag_engine = None
         self._initialized = False
 
-        logger.info(f"Initialized Codex RAG adapter with model: {config.model_name}")
+        logger.info(f"Initialized Docs2DB RAG adapter with model: {config.model_name}")
 
     async def _initialize_rag_engine(self):
         """Initialize the RAG engine (lazy loading)"""
@@ -448,27 +447,27 @@ class CodexRAGAdapter(ToolRuntime):
 
 # Required function for inline providers
 async def get_provider_impl(
-    config: CodexRAGConfig, deps: Dict[Any, Any]
-) -> CodexRAGAdapter:
+    config: Docs2DBRAGConfig, deps: Dict[Any, Any]
+) -> Docs2DBRAGAdapter:
     """
     Required function for Llama Stack inline providers.
 
     Args:
-        config: An instance of CodexRAGConfig
+        config: An instance of Docs2DBRAGConfig
         deps: A dictionary of API dependencies
 
     Returns:
-        An instance of CodexRAGAdapter
+        An instance of Docs2DBRAGAdapter
     """
-    logger.info("Creating Codex RAG provider instance")
-    adapter = CodexRAGAdapter(config)
+    logger.info("Creating Docs2DB RAG provider instance")
+    adapter = Docs2DBRAGAdapter(config)
     return adapter
 
 
 # For testing the provider independently
 async def test_provider():
     """Test the provider functionality"""
-    config = CodexRAGConfig(
+    config = Docs2DBRAGConfig(
         model_name="granite-30m-english", similarity_threshold=0.7, max_chunks=5
     )
 
@@ -478,11 +477,11 @@ async def test_provider():
     search_kwargs = {"query": "How do I configure SSH on RHEL?", "max_chunks": 3}
 
     search_response = await adapter.invoke_tool("search_documents", search_kwargs)
-    print(f"Search Response: {search_response.content[:200]}...")
+    logger.info("Search Response", content_preview=search_response.content[:200])
 
     # Test search and generate
     generate_response = await adapter.invoke_tool("search_and_generate", search_kwargs)
-    print(f"Generate Response: {generate_response.content[:200]}...")
+    logger.info("Generate Response", content_preview=generate_response.content[:200])
 
 
 if __name__ == "__main__":

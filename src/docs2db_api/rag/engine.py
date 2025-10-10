@@ -23,15 +23,14 @@ Architecture:
 
 import asyncio
 import json
-import logging
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
 import structlog
 
-from codex.database import DatabaseManager, get_db_config
-from codex.embeddings import EMBEDDING_CONFIGS, GraniteEmbeddingProvider
+from docs2db_api.database import DatabaseManager, get_db_config
+from docs2db_api.embeddings import EMBEDDING_CONFIGS, GraniteEmbeddingProvider
 
 # Configure logging
 logger = structlog.get_logger(__name__)
@@ -502,9 +501,6 @@ Answer:"""
 
     async def close(self):
         """Clean up resources"""
-        if self.db_manager:
-            await self.db_manager.close_pool()
-        
         # Close LLM client if it has a close method
         if self.llm_client and hasattr(self.llm_client, 'close'):
             await self.llm_client.close()
