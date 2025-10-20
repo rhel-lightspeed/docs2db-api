@@ -17,6 +17,7 @@ import structlog
 import yaml
 from psycopg.sql import SQL, Identifier
 
+from docs2db_api.embeddings import EMBEDDING_CONFIGS
 from docs2db_api.exceptions import ConfigurationError, ContentError, DatabaseError
 
 logger = structlog.get_logger()
@@ -86,6 +87,15 @@ class DatabaseManager:
         """Convert Unix timestamp to datetime object for PostgreSQL."""
         return datetime.fromtimestamp(unix_timestamp, tz=timezone.utc)
 
+    async def get_model_id(self, conn, model_name: str) -> Optional[int]:
+        """Get model ID by name."""
+        result = await conn.execute(
+            "SELECT id FROM models WHERE name = %s",
+            (model_name,),
+        )
+        row = await result.fetchone()
+        return row[0] if row else None
+
     async def get_stats(self) -> Dict[str, Any]:
         """Get database statistics."""
         async with await self.get_direct_connection() as conn:
@@ -99,21 +109,22 @@ class DatabaseManager:
             chunk_row = await chunk_result.fetchone()
             chunk_count = chunk_row[0] if chunk_row else 0
 
-            # Embedding stats by model
+            # Embedding stats by model (using normalized models table)
             embedding_stats = await conn.execute(
                 """
-                SELECT model_name, COUNT(*) as count, AVG(dimensions) as avg_dimensions
-                FROM embeddings
-                GROUP BY model_name
-                ORDER BY model_name
+                SELECT m.name, COUNT(*) as count, m.dimensions
+                FROM embeddings e
+                JOIN models m ON e.model_id = m.id
+                GROUP BY m.name, m.dimensions
+                ORDER BY m.name
                 """
             )
             embedding_models = {}
             async for row in embedding_stats:
-                model_name, count, avg_dims = row
+                model_name, count, dimensions = row
                 embedding_models[model_name] = {
                     "count": count,
-                    "dimensions": int(avg_dims) if avg_dims else 0,
+                    "dimensions": dimensions,
                 }
 
             return {
@@ -157,15 +168,25 @@ class DatabaseManager:
             )
             return True
 
-    async def search_similar(
+    async def search_vector(
         self,
         query_embedding: List[float],
         model_name: str,
         limit: int = 10,
         similarity_threshold: float = 0.7,
     ) -> List[Dict[str, Any]]:
-        """Search for similar chunks using vector similarity."""
+        """Search for similar chunks using vector similarity (pure semantic search)."""
         async with await self.get_direct_connection() as conn:
+            # Resolve short model name to full model ID
+            model_config = EMBEDDING_CONFIGS.get(model_name, {})
+            model_full_name = model_config.get("model_id", model_name)
+            
+            # Get model_id from full model name
+            model_id = await self.get_model_id(conn, model_full_name)
+            if model_id is None:
+                logger.warning(f"Model '{model_name}' ({model_full_name}) not found in database")
+                return []
+
             results = await conn.execute(
                 """
                 SELECT
@@ -173,12 +194,13 @@ class DatabaseManager:
                     c.metadata,
                     d.path,
                     d.filename,
+                    c.chunk_index,
                     e.embedding <=> %s::vector as distance,
                     1 - (e.embedding <=> %s::vector) as similarity
                 FROM chunks c
                 JOIN documents d ON c.document_id = d.id
                 JOIN embeddings e ON c.id = e.chunk_id
-                WHERE e.model_name = %s
+                WHERE e.model_id = %s
                     AND 1 - (e.embedding <=> %s::vector) >= %s
                 ORDER BY e.embedding <=> %s::vector
                 LIMIT %s
@@ -186,7 +208,7 @@ class DatabaseManager:
                 (
                     query_embedding,
                     query_embedding,
-                    model_name,
+                    model_id,
                     query_embedding,
                     similarity_threshold,
                     query_embedding,
@@ -196,7 +218,7 @@ class DatabaseManager:
 
             similar_chunks = []
             async for row in results:
-                text, metadata_json, doc_path, filename, distance, similarity = row
+                text, metadata_json, doc_path, filename, chunk_index, distance, similarity = row
 
                 # Handle metadata - it might be a dict already or a JSON string
                 if metadata_json:
@@ -212,11 +234,201 @@ class DatabaseManager:
                     "metadata": metadata,
                     "document_path": doc_path,
                     "document_filename": filename,
+                    "chunk_index": chunk_index,
                     "distance": float(distance),
                     "similarity": float(similarity),
                 })
 
             return similar_chunks
+
+    async def search_bm25(
+        self,
+        query_text: str,
+        limit: int = 10,
+    ) -> List[Dict[str, Any]]:
+        """Search for chunks using BM25 full-text search (pure lexical search)."""
+        async with await self.get_direct_connection() as conn:
+            results = await conn.execute(
+                """
+                SELECT
+                    c.text,
+                    c.metadata,
+                    d.path,
+                    d.filename,
+                    c.chunk_index,
+                    ts_rank(c.text_search_vector, websearch_to_tsquery('english', %s)) as rank
+                FROM chunks c
+                JOIN documents d ON c.document_id = d.id
+                WHERE c.text_search_vector @@ websearch_to_tsquery('english', %s)
+                ORDER BY rank DESC
+                LIMIT %s
+                """,
+                (query_text, query_text, limit),
+            )
+
+            bm25_chunks = []
+            async for row in results:
+                text, metadata_json, doc_path, filename, chunk_index, rank = row
+
+                # Handle metadata
+                if metadata_json:
+                    if isinstance(metadata_json, str):
+                        metadata = json.loads(metadata_json)
+                    else:
+                        metadata = metadata_json
+                else:
+                    metadata = {}
+
+                bm25_chunks.append({
+                    "text": text,
+                    "metadata": metadata,
+                    "document_path": doc_path,
+                    "document_filename": filename,
+                    "chunk_index": chunk_index,
+                    "bm25_rank": float(rank),
+                })
+
+            return bm25_chunks
+
+    async def search_hybrid(
+        self,
+        query_embedding: List[float],
+        query_text: str,
+        model_name: str,
+        limit: int = 10,
+        similarity_threshold: float = 0.7,
+        rrf_k: int = 60,
+    ) -> List[Dict[str, Any]]:
+        """
+        Search using hybrid approach: vector similarity + BM25 with Reciprocal Rank Fusion.
+        
+        This is the primary search method - combining semantic and lexical search.
+        """
+        async with await self.get_direct_connection() as conn:
+            # Resolve short model name to full model ID
+            model_config = EMBEDDING_CONFIGS.get(model_name, {})
+            model_full_name = model_config.get("model_id", model_name)
+            
+            # Get model_id from full model name
+            model_id = await self.get_model_id(conn, model_full_name)
+            if model_id is None:
+                logger.warning(f"Model '{model_name}' ({model_full_name}) not found in database")
+                return []
+
+            # Hybrid search with RRF combining vector and BM25 results
+            results = await conn.execute(
+                """
+                WITH vector_results AS (
+                    SELECT
+                        c.id,
+                        c.text,
+                        c.metadata,
+                        d.path,
+                        d.filename,
+                        c.chunk_index,
+                        1 - (e.embedding <=> %s::vector) as similarity,
+                        ROW_NUMBER() OVER (ORDER BY e.embedding <=> %s::vector) as vector_rank
+                    FROM chunks c
+                    JOIN documents d ON c.document_id = d.id
+                    JOIN embeddings e ON c.id = e.chunk_id
+                    WHERE e.model_id = %s
+                        AND 1 - (e.embedding <=> %s::vector) >= %s
+                    ORDER BY e.embedding <=> %s::vector
+                    LIMIT %s
+                ),
+                bm25_results AS (
+                    SELECT
+                        c.id,
+                        c.text,
+                        c.metadata,
+                        d.path,
+                        d.filename,
+                        c.chunk_index,
+                        ts_rank(c.text_search_vector, websearch_to_tsquery('english', %s)) as bm25_rank,
+                        ROW_NUMBER() OVER (ORDER BY ts_rank(c.text_search_vector, websearch_to_tsquery('english', %s)) DESC) as bm25_rank_position
+                    FROM chunks c
+                    JOIN documents d ON c.document_id = d.id
+                    WHERE c.text_search_vector @@ websearch_to_tsquery('english', %s)
+                    ORDER BY bm25_rank DESC
+                    LIMIT %s
+                ),
+                combined AS (
+                    SELECT
+                        COALESCE(v.id, b.id) as id,
+                        COALESCE(v.text, b.text) as text,
+                        COALESCE(v.metadata, b.metadata) as metadata,
+                        COALESCE(v.path, b.path) as path,
+                        COALESCE(v.filename, b.filename) as filename,
+                        COALESCE(v.chunk_index, b.chunk_index) as chunk_index,
+                        v.similarity,
+                        b.bm25_rank,
+                        v.vector_rank,
+                        b.bm25_rank_position,
+                        -- Reciprocal Rank Fusion score
+                        COALESCE(1.0 / (%s + v.vector_rank), 0.0) + COALESCE(1.0 / (%s + b.bm25_rank_position), 0.0) as rrf_score
+                    FROM vector_results v
+                    FULL OUTER JOIN bm25_results b ON v.id = b.id
+                )
+                SELECT
+                    text,
+                    metadata,
+                    path,
+                    filename,
+                    chunk_index,
+                    similarity,
+                    bm25_rank,
+                    rrf_score
+                FROM combined
+                ORDER BY rrf_score DESC
+                LIMIT %s
+                """,
+                (
+                    # vector_results params
+                    query_embedding,
+                    query_embedding,
+                    model_id,
+                    query_embedding,
+                    similarity_threshold,
+                    query_embedding,
+                    limit * 2,  # Get more candidates for RRF
+                    # bm25_results params
+                    query_text,
+                    query_text,
+                    query_text,
+                    limit * 2,  # Get more candidates for RRF
+                    # RRF k constant
+                    rrf_k,
+                    rrf_k,
+                    # Final limit
+                    limit,
+                ),
+            )
+
+            hybrid_chunks = []
+            async for row in results:
+                text, metadata_json, doc_path, filename, chunk_index, similarity, bm25_rank, rrf_score = row
+
+                # Handle metadata
+                if metadata_json:
+                    if isinstance(metadata_json, str):
+                        metadata = json.loads(metadata_json)
+                    else:
+                        metadata = metadata_json
+                else:
+                    metadata = {}
+
+                hybrid_chunks.append({
+                    "text": text,
+                    "metadata": metadata,
+                    "document_path": doc_path,
+                    "document_filename": filename,
+                    "chunk_index": chunk_index,
+                    "similarity": float(similarity) if similarity is not None else None,
+                    "bm25_rank": float(bm25_rank) if bm25_rank is not None else None,
+                    "rrf_score": float(rrf_score),
+                })
+
+            return hybrid_chunks
 
 
 async def check_database_status(

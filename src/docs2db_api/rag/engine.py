@@ -248,9 +248,9 @@ class UniversalRAGEngine:
             # Step 2: Generate query embeddings
             query_embeddings = await self._generate_query_embeddings(search_query)
 
-            # Step 3: Retrieve similar documents
+            # Step 3: Retrieve similar documents using hybrid search
             documents = await self._retrieve_similar_documents(
-                query_embeddings, search_config
+                query_embeddings, search_config, query
             )
 
             # Step 4: Post-process and filter results
@@ -371,12 +371,14 @@ class UniversalRAGEngine:
             raise
 
     async def _retrieve_similar_documents(
-        self, query_embedding: List[float], config: RAGConfig
+        self, query_embedding: List[float], config: RAGConfig, query_text: str
     ) -> List[Dict[str, Any]]:
-        """Retrieve similar documents from the database"""
+        """Retrieve similar documents from the database using hybrid search"""
         try:
-            similar_chunks = await self.db_manager.search_similar(
+            # Always use hybrid search (opinionated choice)
+            hybrid_chunks = await self.db_manager.search_hybrid(
                 query_embedding=query_embedding,
+                query_text=query_text,
                 model_name=config.model_name,
                 limit=config.max_chunks * 2,  # Get extra for post-processing
                 similarity_threshold=config.similarity_threshold,
@@ -384,13 +386,19 @@ class UniversalRAGEngine:
 
             # Convert to standard format
             documents = []
-            for chunk in similar_chunks:
+            for chunk in hybrid_chunks:
+                # Use RRF score as the primary score
+                score = chunk.get("rrf_score", 0.0)
+                
                 documents.append({
                     "text": chunk["text"],
-                    "similarity_score": chunk.get("similarity", 0.0),
+                    "similarity_score": score,
                     "document_path": chunk.get("document_path", ""),
                     "chunk_index": chunk.get("chunk_index", 0),
                     "metadata": chunk.get("metadata", {}),
+                    "vector_similarity": chunk.get("similarity"),
+                    "bm25_rank": chunk.get("bm25_rank"),
+                    "rrf_score": score,
                 })
 
             return documents
@@ -403,14 +411,22 @@ class UniversalRAGEngine:
         self, documents: List[Dict[str, Any]], config: RAGConfig
     ) -> List[Dict[str, Any]]:
         """Post-process and filter results based on similarity and token limits"""
-        # Filter by similarity threshold
-        filtered = [
-            doc
-            for doc in documents
-            if doc["similarity_score"] >= config.similarity_threshold
-        ]
+        # For hybrid search (RRF scores), skip similarity filtering since DB already filtered
+        # RRF scores are small values (~0.01-0.05) and can't be compared to similarity thresholds
+        is_hybrid = documents and "rrf_score" in documents[0]
+        
+        if is_hybrid:
+            # Hybrid results are already filtered by DB and sorted by RRF score
+            filtered = documents
+        else:
+            # Pure vector search: filter by similarity threshold
+            filtered = [
+                doc
+                for doc in documents
+                if doc["similarity_score"] >= config.similarity_threshold
+            ]
 
-        # Sort by similarity score (descending)
+        # Sort by similarity score (descending) - works for both RRF and cosine similarity
         filtered.sort(key=lambda x: x["similarity_score"], reverse=True)
 
         # Limit by max_chunks
