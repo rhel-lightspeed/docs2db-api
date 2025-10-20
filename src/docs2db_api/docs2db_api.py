@@ -160,18 +160,14 @@ def query(
     refine: Annotated[
         bool, typer.Option(help="Enable question refinement")
     ] = True,
-    hybrid: Annotated[
-        bool, typer.Option(help="Enable hybrid search")
-    ] = True,
 ) -> None:
-    """Search documents using RAG engine."""
+    """Search documents using RAG engine with hybrid search and reranking."""
     try:
         config = RAGConfig(
             model_name=model,
             similarity_threshold=threshold,
             max_chunks=limit,
             enable_question_refinement=refine,
-            enable_hybrid_search=hybrid,
         )
 
         async def run_query():

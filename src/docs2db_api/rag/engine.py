@@ -31,6 +31,7 @@ import structlog
 
 from docs2db_api.database import DatabaseManager, get_db_config
 from docs2db_api.embeddings import EMBEDDING_CONFIGS, GraniteEmbeddingProvider
+from docs2db_api.reranker import get_reranker
 
 # Configure logging
 logger = structlog.get_logger(__name__)
@@ -133,7 +134,6 @@ class RAGConfig:
     max_chunks: int = 10
     max_tokens_in_context: int = 4096
     enable_question_refinement: bool = True
-    enable_hybrid_search: bool = True
     refinement_questions_count: int = 5
 
 
@@ -227,9 +227,6 @@ class UniversalRAGEngine:
             enable_question_refinement=options.get(
                 "enable_question_refinement", self.config.enable_question_refinement
             ),
-            enable_hybrid_search=options.get(
-                "enable_hybrid_search", self.config.enable_hybrid_search
-            ),
             refinement_questions_count=options.get(
                 "refinement_questions_count", self.config.refinement_questions_count
             ),
@@ -253,7 +250,11 @@ class UniversalRAGEngine:
                 query_embeddings, search_config, query
             )
 
-            # Step 4: Post-process and filter results
+            # Step 4: Rerank results with cross-encoder
+            if documents:
+                documents = await self._rerank_documents(query, documents)
+
+            # Step 5: Post-process and filter results
             filtered_documents = self._post_process_results(documents, search_config)
 
             # Create metadata
@@ -262,7 +263,6 @@ class UniversalRAGEngine:
                 "model_dimensions": self.model_config["dimensions"],
                 "similarity_threshold": search_config.similarity_threshold,
                 "documents_found": len(filtered_documents),
-                "hybrid_search_enabled": search_config.enable_hybrid_search,
                 "question_refinement_enabled": search_config.enable_question_refinement,
                 "features_used": self._get_features_used(
                     search_config, refined_questions
@@ -407,6 +407,22 @@ class UniversalRAGEngine:
             logger.error(f"Failed to retrieve similar documents: {e}")
             raise
 
+    async def _rerank_documents(
+        self, query: str, documents: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """Rerank documents using a cross-encoder model for improved accuracy."""
+        reranker = get_reranker()
+        
+        # Rerank all retrieved documents
+        reranked = reranker.rerank(query, documents, top_k=None)
+        
+        # Use rerank_score as the new similarity_score for post-processing
+        for doc in reranked:
+            doc["similarity_score"] = doc["rerank_score"]
+        
+        logger.info(f"Reranked {len(reranked)} documents")
+        return reranked
+
     def _post_process_results(
         self, documents: List[Dict[str, Any]], config: RAGConfig
     ) -> List[Dict[str, Any]]:
@@ -500,11 +516,10 @@ Answer:"""
         features = [
             f"{config.model_name}_embeddings",
             "postgresql_vector_search",
+            "hybrid_search",
+            "reranking",
             "similarity_post_processing",
         ]
-
-        if config.enable_hybrid_search:
-            features.append("hybrid_search")
 
         if (
             config.enable_question_refinement
