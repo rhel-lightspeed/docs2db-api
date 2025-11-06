@@ -15,7 +15,7 @@ Summary:
 
 Docs2DB-API implements modern retrieval techniques:
 
-- Contextual chunks with document-level context prepended to each chunk
+- Contextual chunks with LLM-generated context situating each chunk within its document (following [Anthropic's Contextual Retrieval](https://www.anthropic.com/engineering/contextual-retrieval))
 - Hybrid search combining BM25 (lexical) and vector embeddings (semantic)
 - Reciprocal Rank Fusion (RRF) for result combination
 - Cross-encoder reranker for improved result quality

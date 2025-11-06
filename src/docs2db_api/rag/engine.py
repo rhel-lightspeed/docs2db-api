@@ -1,22 +1,17 @@
 #!/usr/bin/env python3
 """
-Universal RAG Engine for Codex
-==============================
-
-This module implements a generic RAG (Retrieval-Augmented Generation) engine
-that combines the advanced techniques from RagSpike2 with Codex's existing
-database and embedding infrastructure.
+Universal RAG Engine
+====================
 
 Features:
 - Question refinement (generates multiple targeted queries)
 - Hybrid search (vector similarity + keyword search)
 - Similarity post-processing with configurable thresholds
-- Multi-model support using Codex's EMBEDDING_CONFIGS
+- Multi-model support
 - Generic interface suitable for multiple API adapters
 
 Architecture:
-- Uses existing Codex database with 91K+ documents and 811K+ chunks
-- Leverages Codex's GraniteEmbeddingProvider by default
+- Uses Docs2DB databases (https://github.com/rhel-lightspeed/docs2db)
 - Configurable model selection for future extensibility
 - Framework-agnostic core suitable for REST API, Llama Stack, etc.
 """
@@ -37,8 +32,8 @@ from docs2db_api.reranker import get_reranker
 logger = structlog.get_logger(__name__)
 
 
-class OllamaLLMClient:
-    """Simple Ollama client for query refinement."""
+class LLMClient:
+    """LLM client using OpenAI-compatible API for query refinement."""
     
     def __init__(self, base_url: str = "http://localhost:11434", model: str = "qwen2.5:7b-instruct"):
         self.base_url = base_url.rstrip('/')
@@ -46,26 +41,24 @@ class OllamaLLMClient:
         self.client = httpx.AsyncClient(timeout=30.0)
         
     async def acomplete(self, prompt: str) -> str:
-        """Complete a prompt using Ollama API."""
+        """Complete a prompt using OpenAI-compatible API."""
         try:
             response = await self.client.post(
-                f"{self.base_url}/api/generate",
+                f"{self.base_url}/v1/chat/completions",
                 json={
                     "model": self.model,
-                    "prompt": prompt,
+                    "messages": [{"role": "user", "content": prompt}],
                     "stream": False,
-                    "options": {
-                        "temperature": 0.7,
-                        "max_tokens": 500,
-                    }
+                    "temperature": 0.7,
+                    "max_tokens": 500,
                 }
             )
             response.raise_for_status()
             result = response.json()
-            return result.get("response", "").strip()
+            return result["choices"][0]["message"]["content"].strip()
             
         except Exception as e:
-            logger.warning(f"Ollama LLM call failed: {e}")
+            logger.warning(f"LLM call failed: {e}")
             return ""
     
     async def close(self):
@@ -150,9 +143,6 @@ class RAGResult:
 
 class UniversalRAGEngine:
     """
-    Universal RAG Engine that provides advanced RAG capabilities
-    using Codex's existing database and embedding infrastructure.
-
     This engine is framework-agnostic and can be used by multiple
     interface adapters (REST API, Llama Stack, OpenAI tools, etc.)
     """
@@ -481,6 +471,7 @@ class UniversalRAGEngine:
 
         context = "\n".join(context_parts)
 
+        # TODO: Make this a generic prompt, or base it on database metadata.
         response_prompt = f"""You are a helpful assistant with expertise in Red Hat Enterprise Linux (RHEL) and system administration.
 
 Based on the following context from the RHEL documentation, provide a comprehensive and accurate answer to the user's question.
@@ -506,7 +497,7 @@ Answer:"""
         if not self.llm_client:
             raise ValueError("No LLM client configured")
 
-        # Use the Ollama client's acomplete method
+        # Use the LLM client's acomplete method
         return await self.llm_client.acomplete(prompt)
 
     def _get_features_used(

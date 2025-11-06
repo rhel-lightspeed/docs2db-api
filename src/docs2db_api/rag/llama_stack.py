@@ -40,7 +40,7 @@ os.environ['MKL_NUM_THREADS'] = '1'
 os.environ['TOKENIZERS_PARALLELISM'] = 'false'
 
 from docs2db_api.embeddings import EMBEDDING_CONFIGS
-from docs2db_api.rag.engine import RAGConfig, UniversalRAGEngine, OllamaLLMClient
+from docs2db_api.rag.engine import RAGConfig, UniversalRAGEngine, LLMClient
 
 logger = structlog.get_logger(__name__)
 
@@ -148,17 +148,17 @@ class Docs2DBRAGAdapter(ToolRuntime):
 
             logger.info("🔧 Initializing Universal RAG Engine...")
             
-            # Create Ollama LLM client for query refinement
-            ollama_client = None
+            # Create LLM client for query refinement
+            llm_client = None
             if rag_config.enable_question_refinement:
                 try:
-                    ollama_client = OllamaLLMClient()
-                    logger.info("✅ Ollama LLM client created for query refinement")
+                    llm_client = LLMClient()
+                    logger.info("✅ LLM client created for query refinement")
                 except Exception as e:
-                    logger.warning(f"Failed to create Ollama client, query refinement disabled: {e}")
+                    logger.warning(f"Failed to create LLM client, query refinement disabled: {e}")
             
             # Initialize the RAG engine with LLM client
-            self.rag_engine = UniversalRAGEngine(rag_config, ollama_client)
+            self.rag_engine = UniversalRAGEngine(rag_config, llm_client)
             logger.info("✅ Universal RAG Engine created")
 
             self._initialized = True
