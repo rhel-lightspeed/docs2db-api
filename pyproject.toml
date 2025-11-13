@@ -1,10 +1,31 @@
 [project]
 name = "docs2db-api"
 version = "0.1.0"
-description = "Serve a Docs2DB database for RAG"
+description = "Query Docs2DB RAG databases with hybrid search and reranking"
 readme = "README.md"
 authors = [{ name = "Ellis Low", email = "elow@redhat.com" }]
+license = { text = "Apache-2.0" }
 requires-python = ">=3.12,<3.13"
+keywords = [
+    "rag",
+    "retrieval",
+    "embeddings",
+    "semantic-search",
+    "vector-search",
+    "hybrid-search",
+    "pgvector",
+    "postgresql",
+    "llm",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
 dependencies = [
     "cachetools>=6.1.0",
     "docling>=2.42.1",
@@ -27,6 +48,13 @@ dependencies = [
 
 [project.scripts]
 docs2db-api = "docs2db_api.docs2db_api:app"
+
+[project.urls]
+Homepage = "https://github.com/rhel-lightspeed/docs2db-api"
+Documentation = "https://github.com/rhel-lightspeed/docs2db-api#readme"
+Repository = "https://github.com/rhel-lightspeed/docs2db-api"
+Issues = "https://github.com/rhel-lightspeed/docs2db-api/issues"
+Changelog = "https://github.com/rhel-lightspeed/docs2db-api/blob/main/CHANGELOG.md"
 
 [build-system]
 requires = ["uv_build>=0.8.2,<0.9.0"]
@@ -63,7 +91,7 @@ dev = [
 
 [tool.pytest.ini_options]
 addopts = [
-    "--cov=docs2db-api",
+    "--cov=docs2db_api",
     "--cov-report=term-missing",
     "--cov-report=html",
     "--cov-report=xml",

@@ -1,27 +1,181 @@
-# Docs2DB-API - RAG Server For a Docs2DB Database
+# Docs2DB-API
 
-Docs2DB-API is an RAG server for use with Docs2DB databases.
+Query a [Docs2DB](https://github.com/rhel-lightspeed/docs2db) RAG database with modern retrieval techniques. Docs2DB-API provides a Python library for hybrid search (vector + BM25) with reranking.
 
-See https://github.com/rhel-lightspeed/docs2db
+**What it does:**
+- Queries RAG databases created by [docs2db](https://github.com/rhel-lightspeed/docs2db)
+- Hybrid search: combines vector similarity with BM25 full-text search
+- Reciprocal Rank Fusion (RRF) for result combination
+- Cross-encoder reranking for improved result quality
+- Question refinement for query expansion
+- Universal RAG engine adaptable to multiple API frameworks
 
-See `demos/llama-stack/README.md`
+**What it's for:**
+- Building RAG applications and agents
+- Adding document search to LLM systems
+- Serving RAG APIs (FastAPI, LlamaStack, custom frameworks)
 
-Summary:
-* Gather a folder of your source data documents
-* Run Docs2DB on that folder to get a database
-* Import Docs2DB-API in your LLM applications to use your source data in RAG.
+## Installation
 
-## RAG Algorithm
+```bash
+uv add docs2db-api
+```
+
+## Quickstart
+
+**Step 1: Create a database with [docs2db](https://github.com/rhel-lightspeed/docs2db)**
+
+```bash
+uv tool install docs2db
+docs2db pipeline /path/to/documents
+```
+
+This creates `ragdb_dump.sql`.
+
+**Step 2: Restore and query**
+
+```bash
+# Start database
+uv run docs2db-api db-start
+
+# Restore dump
+uv run docs2db-api db-restore ragdb_dump.sql
+
+# Check status
+uv run docs2db-api db-status
+```
+
+**Step 3: Use in your application**
+
+```python
+from docs2db_api.rag.engine import UniversalRAGEngine, RAGConfig
+
+# Initialize engine with defaults (auto-detects database from environment)
+engine = UniversalRAGEngine()
+await engine.start()
+
+# Or with specific settings
+config = RAGConfig(
+    model_name="granite-30m-english",
+    max_chunks=5,
+    similarity_threshold=0.7
+)
+db_config = {
+    "host": "localhost",
+    "port": "5432",
+    "database": "ragdb",
+    "user": "postgres",
+    "password": "postgres"
+}
+engine = UniversalRAGEngine(config=config, db_config=db_config)
+await engine.start()
+
+# Search
+result = await engine.search_documents("How do I configure authentication?")
+for doc in result.documents:
+    print(f"{doc['title']}: {doc['content'][:100]}...")
+```
+
+## LlamaStack Integration
+
+Docs2DB-API includes a native LlamaStack tool provider for agent-based RAG. See the complete demo with setup scripts and examples:
+
+**[📁 demos/llama-stack/](demos/llama-stack/)** - LlamaStack RAG tool provider with agent demos
+
+(this needs to be adjusted to work from pypi)
+
+## Database Configuration
+
+** Database Configuration precedence (highest to lowest):**
+1. CLI arguments: `--host`, `--port`, `--db`, `--user`, `--password`
+2. Environment variables: `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`
+3. `DATABASE_URL`: `postgresql://user:pass@host:port/database`
+4. `postgres-compose.yml` in current directory
+5. Defaults: `localhost:5432`, user=`postgres`, password=`postgres`, db=`ragdb`
+
+**Examples:**
+
+```bash
+# Use defaults
+uv run docs2db-api db-status
+
+# Environment variables
+export POSTGRES_HOST=prod.example.com
+export POSTGRES_DB=mydb
+uv run docs2db-api db-status
+
+# DATABASE_URL (cloud providers)
+export DATABASE_URL="postgresql://user:pass@host:5432/db"
+uv run docs2db-api db-status
+
+# CLI arguments
+uv run docs2db-api db-status --host localhost --db mydb
+```
+
+**Note:** Don't mix `DATABASE_URL` with individual `POSTGRES_*` variables.
+
+## RAG Configuration
+
+RAG settings control retrieval behavior (similarity thresholds, reranking, refinement, etc.) and can be stored in the database or provided at query time.
+
+### Available Settings
+
+- `refinement_prompt` - Custom prompt for query refinement
+- `enable_refinement` (refinement) - Enable question refinement (true/false)
+- `enable_reranking` (reranking) - Enable cross-encoder reranking (true/false)
+- `similarity_threshold` - Similarity threshold 0.0-1.0
+- `max_chunks` - Maximum chunks to return
+- `max_tokens_in_context` - Maximum tokens in context window
+- `refinement_questions_count` - Number of refined questions to generate
+
+### Configuration Precedence (highest to lowest)
+
+1. **Query parameters** - Passed directly to `engine.search_documents()` or CLI `--threshold`, `--limit`, etc.
+2. **RAGConfig object** - Provided when initializing `UniversalRAGEngine`
+3. **Database settings** - Stored in database via `docs2db config` command
+(see [docs2db](https://github.com/rhel-lightspeed/docs2db))
+4. **Code defaults** - Built-in fallback values
+
+## Commands
+
+### Database Management
+
+```bash
+docs2db-api db-start               # Start PostgreSQL with Podman/Docker
+docs2db-api db-stop                # Stop PostgreSQL (data preserved)
+docs2db-api db-destroy             # Stop and delete all data
+docs2db-api db-status              # Check connection and stats
+docs2db-api db-restore <file>      # Restore database from dump
+docs2db-api manifest               # Generate list of documents
+```
+
+### Querying
+
+```bash
+# Basic search
+docs2db-api query "How do I configure authentication?"
+
+# Advanced options
+docs2db-api query "deployment guide" \
+  --model granite-30m-english \
+  --limit 20 \
+  --threshold 0.8 \
+  --no-refine                     # Disable question refinement
+```
+
+## RAG Features
 
 Docs2DB-API implements modern retrieval techniques:
 
-- Contextual chunks with LLM-generated context situating each chunk within its document (following [Anthropic's Contextual Retrieval](https://www.anthropic.com/engineering/contextual-retrieval))
-- Hybrid search combining BM25 (lexical) and vector embeddings (semantic)
-- Reciprocal Rank Fusion (RRF) for result combination
-- Cross-encoder reranker for improved result quality
-- PostgreSQL full-text search with tsvector and GIN indexing
-- pgvector for similarity search
-- Granite embedding models (30M parameters, 384 dimensions)
-- Normalized model metadata storage
-- Question refinement for improved query expansion
-- Universal RAG engine adaptable to multiple API frameworks
+- **Contextual chunks** - LLM-generated context situating each chunk within its document ([Anthropic's approach](https://www.anthropic.com/engineering/contextual-retrieval))
+- **Hybrid search** - Combines BM25 (lexical) and vector embeddings (semantic)
+- **Reciprocal Rank Fusion (RRF)** - Intelligent result combination
+- **Cross-encoder reranking** - Improved result quality
+- **Question refinement** - Query expansion for better matches
+- **PostgreSQL full-text search** - tsvector with GIN indexing for BM25
+- **pgvector similarity** - Fast vector search with HNSW indexes
+- **Universal RAG engine** - Adaptable to multiple API frameworks
+
+## License
+
+See [LICENSE](LICENSE) for details.

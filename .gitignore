@@ -1,6 +1,9 @@
 # Generated content directory from ingestion
 /content/
 
+# Database dumps
+*.sql
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

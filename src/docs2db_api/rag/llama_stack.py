@@ -62,17 +62,13 @@ class Docs2DBRAGConfig:
     max_chunks: int = 10
     max_tokens_in_context: int = 4096
     enable_question_refinement: bool = True
-    enable_hybrid_search: bool = True
 
 
 # Try to import Llama Stack interfaces
 try:
-    from llama_stack.apis.tools import ToolInvocationResult, ToolRuntime
-    from llama_stack.apis.tools.tools import (
-        ListToolDefsResponse,
-        ToolDef,
-        ToolParameter,
-    )
+    from llama_stack.apis.tools import ToolInvocationResult, ToolRuntime  # type: ignore[attr-defined]
+    from llama_stack.apis.tools.tools import ListToolDefsResponse  # type: ignore[attr-defined, assignment]
+    from llama_stack.apis.tools.tools import ToolDef  # type: ignore[attr-defined, assignment]
 
     LLAMA_STACK_AVAILABLE = True
 except ImportError:
@@ -142,7 +138,6 @@ class Docs2DBRAGAdapter(ToolRuntime):
                 max_chunks=self.config.max_chunks,
                 max_tokens_in_context=self.config.max_tokens_in_context,
                 enable_question_refinement=self.config.enable_question_refinement,
-                enable_hybrid_search=self.config.enable_hybrid_search,
             )
             logger.info("✅ RAG configuration created")
 
@@ -312,6 +307,7 @@ class Docs2DBRAGAdapter(ToolRuntime):
         try:
             logger.info("🔧 About to call rag_engine.search_documents...")
             # Perform document search
+            assert self.rag_engine is not None, "RAG engine must be initialized"
             result = await self.rag_engine.search_documents(
                 query,
                 model_name=model_name,
@@ -397,6 +393,7 @@ class Docs2DBRAGAdapter(ToolRuntime):
         try:
             # For now, fall back to document search since we don't have LLM integration yet
             # TODO: Implement full search_and_generate when LLM client is available
+            assert self.rag_engine is not None, "RAG engine must be initialized"
             result = await self.rag_engine.search_documents(
                 query,
                 model_name=model_name,
@@ -477,11 +474,11 @@ async def test_provider():
     search_kwargs = {"query": "How do I configure SSH on RHEL?", "max_chunks": 3}
 
     search_response = await adapter.invoke_tool("search_documents", search_kwargs)
-    logger.info("Search Response", content_preview=search_response.content[:200])
+    logger.info("Search Response", content_preview=(search_response.content or "")[:200])
 
     # Test search and generate
     generate_response = await adapter.invoke_tool("search_and_generate", search_kwargs)
-    logger.info("Generate Response", content_preview=generate_response.content[:200])
+    logger.info("Generate Response", content_preview=(generate_response.content or "")[:200])
 
 
 if __name__ == "__main__":

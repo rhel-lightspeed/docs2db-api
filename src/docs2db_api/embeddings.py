@@ -33,7 +33,7 @@ class EmbeddingProvider:
     def __init__(self, model_name: str, config: Dict[str, Any], device: str):
         self.model_name = model_name
         self.config = config
-        self.model_id = config["model_id"]
+        self.model = model_name  # Full model identifier (e.g., "ibm-granite/granite-embedding-30m-english")
         self.dimensions = config["dimensions"]
         self.device = device
 
@@ -61,14 +61,14 @@ class GraniteEmbeddingProvider(EmbeddingProvider):
 
             try:
                 self._model = AutoModel.from_pretrained(
-                    self.model_id, local_files_only=True
+                    self.model, local_files_only=True
                 )
                 self._tokenizer = AutoTokenizer.from_pretrained(
-                    self.model_id, local_files_only=True
+                    self.model, local_files_only=True
                 )
             except Exception as e:
                 raise ValueError(
-                    f"Granite model '{self.model_id}' not found locally. "
+                    f"Granite model '{self.model}' not found locally. "
                     f"Run: uv run docs2db-api download-model granite-30m-english"
                     f" Original error: {e}"
                 ) from e
@@ -110,9 +110,8 @@ class GraniteEmbeddingProvider(EmbeddingProvider):
 
 
 EMBEDDING_CONFIGS = {
-    "granite-30m-english": {
+    "ibm-granite/granite-embedding-30m-english": {
         "keyword": "gran",
-        "model_id": "ibm-granite/granite-embedding-30m-english",
         "dimensions": 384,
         "provider": "granite",
         "cls": GraniteEmbeddingProvider,

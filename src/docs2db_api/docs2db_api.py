@@ -11,12 +11,53 @@ from docs2db_api.database import (
     generate_manifest,
     restore_database,
 )
+from docs2db_api.db_lifecycle import (
+    destroy_database,
+    start_database,
+    stop_database,
+)
 from docs2db_api.exceptions import Docs2DBException
 from docs2db_api.rag.engine import RAGConfig, UniversalRAGEngine
 
 logger = structlog.get_logger(__name__)
 
 app = typer.Typer(help="Make a RAG Database from source content")
+
+
+@app.command(name="db-start")
+def db_start() -> None:
+    """Start PostgreSQL database using Podman/Docker compose."""
+    try:
+        if not start_database():
+            raise typer.Exit(1)
+    except Docs2DBException as e:
+        logger.error(str(e))
+        raise typer.Exit(1)
+
+
+@app.command(name="db-stop")
+def db_stop() -> None:
+    """Stop PostgreSQL database (data preserved in volumes)."""
+    try:
+        if not stop_database():
+            raise typer.Exit(1)
+    except Docs2DBException as e:
+        logger.error(str(e))
+        raise typer.Exit(1)
+
+
+@app.command(name="db-destroy")
+def db_destroy() -> None:
+    """Stop PostgreSQL database and remove all data volumes.
+    
+    WARNING: This will permanently delete all database data!
+    """
+    try:
+        if not destroy_database():
+            raise typer.Exit(1)
+    except Docs2DBException as e:
+        logger.error(str(e))
+        raise typer.Exit(1)
 
 
 @app.command(name="db-status")
@@ -150,9 +191,9 @@ def manifest(
 def query(
     query_text: Annotated[str, typer.Argument(help="Search query")],
     model: Annotated[
-        str,
-        typer.Option(help="Embedding model to use"),
-    ] = "granite-30m-english",
+        Optional[str],
+        typer.Option(help="Embedding model to use (auto-detected if not specified)"),
+    ] = None,
     limit: Annotated[int, typer.Option(help="Maximum number of results")] = 10,
     threshold: Annotated[
         float, typer.Option(help="Similarity threshold (0.0-1.0)")
@@ -160,6 +201,10 @@ def query(
     refine: Annotated[
         bool, typer.Option(help="Enable question refinement")
     ] = True,
+    refinement_prompt: Annotated[
+        Optional[str],
+        typer.Option(help="Custom prompt for query refinement"),
+    ] = None,
 ) -> None:
     """Search documents using RAG engine with hybrid search and reranking."""
     try:
@@ -171,36 +216,35 @@ def query(
         )
 
         async def run_query():
-            engine = UniversalRAGEngine(config)
-            try:
-                logger.info("🔍 Searching", query=query_text, model=model, threshold=threshold, limit=limit)
-                logger.info("=" * 60)
+            engine = UniversalRAGEngine(config, refinement_prompt=refinement_prompt)
+            await engine.start()
+            
+            model_info = f"model={engine.config.model_name}" if engine.config.model_name else "model=auto-detected"
+            logger.info("Searching", query=query_text, model_info=model_info, threshold=threshold, limit=limit)
+            logger.info("=" * 60)
 
-                result = await engine.search_documents(query_text)
+            result = await engine.search_documents(query_text)
 
-                logger.info("✅ Found documents", count=len(result.documents))
+            logger.info("Found documents", count=len(result.documents))
 
-                if result.metadata:
-                    metadata_lines = ["📈 Metadata:"]
-                    for key, value in result.metadata.items():
-                        metadata_lines.append(f"{key:<20} {value}")
-                    logger.info("\n".join(metadata_lines))
+            if result.metadata:
+                metadata_lines = ["Metadata:"]
+                for key, value in result.metadata.items():
+                    metadata_lines.append(f"{key:<20} {value}")
+                logger.info("\n".join(metadata_lines))
 
-                if result.refined_questions:
-                    logger.info("🎯 Refined Questions", questions=result.refined_questions)
+            if result.refined_questions:
+                logger.info("Refined Questions", questions=result.refined_questions)
 
-                logger.info("📄 Documents found")
-                for i, doc in enumerate(result.documents, 1):
-                    text_preview = doc['text'][:300] + ('...' if len(doc['text']) > 300 else '')
-                    logger.info(
-                        f"Document\n{text_preview}",
-                        index=i,
-                        similarity=doc['similarity_score'],
-                        source=doc['document_path']
-                    )
-
-            finally:
-                await engine.close()
+            logger.info("Documents found")
+            for i, doc in enumerate(result.documents, 1):
+                text_preview = doc['text'][:300] + ('...' if len(doc['text']) > 300 else '')
+                logger.info(
+                    f"Document\n{text_preview}",
+                    index=i,
+                    similarity=doc['similarity_score'],
+                    source=doc['document_path']
+                )
 
         asyncio.run(run_query())
 
