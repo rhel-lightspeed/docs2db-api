@@ -48,32 +48,38 @@ uv run docs2db-api db-status
 **Step 3: Use in your application**
 
 ```python
+import asyncio
 from docs2db_api.rag.engine import UniversalRAGEngine, RAGConfig
 
-# Initialize engine with defaults (auto-detects database from environment)
-engine = UniversalRAGEngine()
-await engine.start()
+async def main():
+    # Initialize engine with defaults (auto-detects database from environment)
+    engine = UniversalRAGEngine()
+    await engine.start()
+    
+    # # Or with specific settings
+    # config = RAGConfig(
+    #     model_name="granite-30m-english",
+    #     max_chunks=5,
+    #     similarity_threshold=0.7
+    # )
+    # db_config = {
+    #     "host": "localhost",
+    #     "port": "5432",
+    #     "database": "ragdb",
+    #     "user": "postgres",
+    #     "password": "postgres"
+    # }
+    # engine = UniversalRAGEngine(config=config, db_config=db_config)
+    # await engine.start()
+    
+    # Search
+    result = await engine.search_documents("How do I configure authentication?")
+    for doc in result.documents:
+        print(f"Score: {doc['similarity_score']:.3f}")
+        print(f"Source: {doc['document_path']}")
+        print(f"Text: {doc['text'][:200]}...\n")
 
-# Or with specific settings
-config = RAGConfig(
-    model_name="granite-30m-english",
-    max_chunks=5,
-    similarity_threshold=0.7
-)
-db_config = {
-    "host": "localhost",
-    "port": "5432",
-    "database": "ragdb",
-    "user": "postgres",
-    "password": "postgres"
-}
-engine = UniversalRAGEngine(config=config, db_config=db_config)
-await engine.start()
-
-# Search
-result = await engine.search_documents("How do I configure authentication?")
-for doc in result.documents:
-    print(f"{doc['title']}: {doc['content'][:100]}...")
+asyncio.run(main())
 ```
 
 ## LlamaStack Integration
