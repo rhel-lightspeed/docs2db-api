@@ -40,7 +40,7 @@ os.environ['MKL_NUM_THREADS'] = '1'
 os.environ['TOKENIZERS_PARALLELISM'] = 'false'
 
 from docs2db_api.embeddings import EMBEDDING_CONFIGS
-from docs2db_api.rag.engine import RAGConfig, UniversalRAGEngine, LLMClient
+from docs2db_api.rag.engine import LLMClient, RAGConfig, UniversalRAGEngine
 
 logger = structlog.get_logger(__name__)
 
@@ -66,9 +66,14 @@ class Docs2DBRAGConfig:
 
 # Try to import Llama Stack interfaces
 try:
-    from llama_stack.apis.tools import ToolInvocationResult, ToolRuntime  # type: ignore[attr-defined]
-    from llama_stack.apis.tools.tools import ListToolDefsResponse  # type: ignore[attr-defined, assignment]
-    from llama_stack.apis.tools.tools import ToolDef  # type: ignore[attr-defined, assignment]
+    from llama_stack.apis.tools import (  # type: ignore[attr-defined]
+        ToolInvocationResult,
+        ToolRuntime,
+    )
+    from llama_stack.apis.tools.tools import (
+        ListToolDefsResponse,  # type: ignore[attr-defined, assignment]
+        ToolDef,  # type: ignore[attr-defined, assignment]
+    )
 
     LLAMA_STACK_AVAILABLE = True
 except ImportError:

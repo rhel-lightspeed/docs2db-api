@@ -221,7 +221,6 @@ def query(
             
             model_info = f"model={engine.config.model_name}" if engine.config.model_name else "model=auto-detected"
             logger.info("Searching", query=query_text, model_info=model_info, threshold=threshold, limit=limit)
-            logger.info("=" * 60)
 
             result = await engine.search_documents(query_text)
 

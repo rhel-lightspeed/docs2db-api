@@ -1,7 +1,8 @@
 """Pytest fixtures and configuration for docs2db-api tests."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 
 
 @pytest.fixture

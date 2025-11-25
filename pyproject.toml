@@ -1,6 +1,6 @@
 [project]
 name = "docs2db-api"
-version = "0.1.0"
+version = "0.2.0"
 description = "Query Docs2DB RAG databases with hybrid search and reranking"
 readme = "README.md"
 authors = [{ name = "Ellis Low", email = "elow@redhat.com" }]
@@ -38,6 +38,7 @@ dependencies = [
     "rich>=14.0.0",
     "structlog>=25.4.0",
     "torch>=2.7.1",
+    "torchvision>=0.22.1",
     "sentence-transformers>=3.3.0",
     "tqdm>=4.67.1",
     "xxhash>=3.5.0",

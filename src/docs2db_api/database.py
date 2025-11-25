@@ -17,6 +17,7 @@ import structlog
 import yaml
 from psycopg.sql import SQL, Identifier
 
+from docs2db_api.config import settings
 from docs2db_api.embeddings import EMBEDDING_CONFIGS
 from docs2db_api.exceptions import ConfigurationError, ContentError, DatabaseError
 
@@ -24,76 +25,29 @@ logger = structlog.get_logger()
 
 
 def get_db_config() -> Dict[str, str]:
-    """Get database connection parameters from multiple sources.
+    """Get database connection parameters from Pydantic settings.
 
     Configuration precedence (highest to lowest):
-    1. Environment variables (POSTGRES_HOST, POSTGRES_PORT, etc.)
-    2. DATABASE_URL environment variable
+    1. Environment variables (DOCS2DB_DB_HOST, DOCS2DB_DB_PORT, etc.)
+    2. DOCS2DB_DB_URL environment variable
     3. postgres-compose.yml in current working directory
     4. Default values (localhost:5432, user=postgres, db=ragdb)
-
-    Raises:
-        ConfigurationError: If both DATABASE_URL and individual POSTGRES_* vars are set
 
     Returns:
         Dict with keys: host, port, database, user, password
     """
-    # Check for conflicting configuration sources
-    has_database_url = bool(os.getenv("DATABASE_URL"))
-    has_postgres_vars = any([
-        os.getenv("POSTGRES_HOST"),
-        os.getenv("POSTGRES_PORT"),
-        os.getenv("POSTGRES_DB"),
-        os.getenv("POSTGRES_USER"),
-        os.getenv("POSTGRES_PASSWORD"),
-    ])
-
-    if has_database_url and has_postgres_vars:
-        raise ConfigurationError(
-            "Conflicting database configuration: both DATABASE_URL and individual "
-            "POSTGRES_* environment variables are set. Please use one or the other."
-        )
-
-    # Start with sensible defaults
+    # Start with values from Pydantic settings (which handles env vars and defaults)
     config = {
-        "host": "localhost",
-        "port": "5432",
-        "database": "ragdb",
-        "user": "postgres",
-        "password": "postgres",
+        "host": settings.database.host,
+        "port": str(settings.database.port),
+        "database": settings.database.database,
+        "user": settings.database.user,
+        "password": settings.database.password,
     }
 
-    # Try postgres-compose.yml in current working directory
-    compose_file = Path.cwd() / "postgres-compose.yml"
-    if compose_file.exists():
-        try:
-            with open(compose_file, "r") as f:
-                compose_data = yaml.safe_load(f)
-
-            db_service = compose_data.get("services", {}).get("db", {})
-            env = db_service.get("environment", {})
-
-            if "POSTGRES_DB" in env:
-                config["database"] = env["POSTGRES_DB"]
-            if "POSTGRES_USER" in env:
-                config["user"] = env["POSTGRES_USER"]
-            if "POSTGRES_PASSWORD" in env:
-                config["password"] = env["POSTGRES_PASSWORD"]
-
-            # Extract port from ports mapping if available
-            ports = db_service.get("ports", [])
-            for port_mapping in ports:
-                if isinstance(port_mapping, str) and ":5432" in port_mapping:
-                    host_port = port_mapping.split(":")[0]
-                    config["port"] = host_port
-                    break
-        except Exception as e:
-            # If compose file exists but can't be parsed, warn but continue with defaults
-            logger.warning(f"Could not parse postgres-compose.yml: {e}")
-
-    # DATABASE_URL takes precedence over compose file but not over individual vars
-    if has_database_url:
-        database_url = os.getenv("DATABASE_URL", "")
+    # If DOCS2DB_DB_URL is set, parse it and override individual settings
+    if settings.database.url:
+        database_url = settings.database.url
         try:
             # Parse postgresql://user:password@host:port/database
             # Support both postgresql:// and postgres:// schemes
@@ -124,32 +78,50 @@ def get_db_config() -> Dict[str, str]:
                         config["host"] = host_port
                 else:
                     raise ConfigurationError(
-                        f"Invalid DATABASE_URL format (missing @): {database_url}"
+                        f"Invalid DOCS2DB_DB_URL format (missing @): {database_url}"
                     )
             else:
                 raise ConfigurationError(
-                    f"Invalid DATABASE_URL scheme. Expected postgresql:// or postgres://, "
+                    f"Invalid DOCS2DB_DB_URL scheme. Expected postgresql:// or postgres://, "
                     f"got: {database_url.split('://')[0] if '://' in database_url else database_url}"
                 )
         except ConfigurationError:
             raise
         except Exception as e:
             raise ConfigurationError(
-                f"Failed to parse DATABASE_URL: {e}. "
+                f"Failed to parse DOCS2DB_DB_URL: {e}. "
                 f"Expected format: postgresql://user:password@host:port/database"
             ) from e
 
-    # Individual environment variables override everything (highest precedence)
-    if os.getenv("POSTGRES_HOST"):
-        config["host"] = os.getenv("POSTGRES_HOST", "")
-    if os.getenv("POSTGRES_PORT"):
-        config["port"] = os.getenv("POSTGRES_PORT", "")
-    if os.getenv("POSTGRES_DB"):
-        config["database"] = os.getenv("POSTGRES_DB", "")
-    if os.getenv("POSTGRES_USER"):
-        config["user"] = os.getenv("POSTGRES_USER", "")
-    if os.getenv("POSTGRES_PASSWORD"):
-        config["password"] = os.getenv("POSTGRES_PASSWORD", "")
+    # Check for postgres-compose.yml (lowest priority, only if using defaults)
+    compose_file = Path.cwd() / "postgres-compose.yml"
+    if compose_file.exists():
+        try:
+            with open(compose_file, "r") as f:
+                compose_data = yaml.safe_load(f)
+
+            db_service = compose_data.get("services", {}).get("db", {})
+            env = db_service.get("environment", {})
+
+            # Only apply compose values if still at defaults
+            if config["database"] == "ragdb" and "POSTGRES_DB" in env:
+                config["database"] = env["POSTGRES_DB"]
+            if config["user"] == "postgres" and "POSTGRES_USER" in env:
+                config["user"] = env["POSTGRES_USER"]
+            if config["password"] == "postgres" and "POSTGRES_PASSWORD" in env:
+                config["password"] = env["POSTGRES_PASSWORD"]
+
+            # Extract port from ports mapping if available
+            if config["port"] == "5432":
+                ports = db_service.get("ports", [])
+                for port_mapping in ports:
+                    if isinstance(port_mapping, str) and ":5432" in port_mapping:
+                        host_port = port_mapping.split(":")[0]
+                        config["port"] = host_port
+                        break
+        except Exception as e:
+            # If compose file exists but can't be parsed, warn but continue
+            logger.warning(f"Could not parse postgres-compose.yml: {e}")
 
     return config
 

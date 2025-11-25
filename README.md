@@ -48,32 +48,38 @@ uv run docs2db-api db-status
 **Step 3: Use in your application**
 
 ```python
+import asyncio
 from docs2db_api.rag.engine import UniversalRAGEngine, RAGConfig
 
-# Initialize engine with defaults (auto-detects database from environment)
-engine = UniversalRAGEngine()
-await engine.start()
+async def main():
+    # Initialize engine with defaults (auto-detects database from environment)
+    engine = UniversalRAGEngine()
+    await engine.start()
+    
+    # # Or with specific settings
+    # config = RAGConfig(
+    #     model_name="granite-30m-english",
+    #     max_chunks=5,
+    #     similarity_threshold=0.7
+    # )
+    # db_config = {
+    #     "host": "localhost",
+    #     "port": "5432",
+    #     "database": "ragdb",
+    #     "user": "postgres",
+    #     "password": "postgres"
+    # }
+    # engine = UniversalRAGEngine(config=config, db_config=db_config)
+    # await engine.start()
+    
+    # Search
+    result = await engine.search_documents("How do I configure authentication?")
+    for doc in result.documents:
+        print(f"Score: {doc['similarity_score']:.3f}")
+        print(f"Source: {doc['document_path']}")
+        print(f"Text: {doc['text'][:200]}...\n")
 
-# Or with specific settings
-config = RAGConfig(
-    model_name="granite-30m-english",
-    max_chunks=5,
-    similarity_threshold=0.7
-)
-db_config = {
-    "host": "localhost",
-    "port": "5432",
-    "database": "ragdb",
-    "user": "postgres",
-    "password": "postgres"
-}
-engine = UniversalRAGEngine(config=config, db_config=db_config)
-await engine.start()
-
-# Search
-result = await engine.search_documents("How do I configure authentication?")
-for doc in result.documents:
-    print(f"{doc['title']}: {doc['content'][:100]}...")
+asyncio.run(main())
 ```
 
 ## LlamaStack Integration
@@ -84,12 +90,14 @@ Docs2DB-API includes a native LlamaStack tool provider for agent-based RAG. See 
 
 (this needs to be adjusted to work from pypi)
 
-## Database Configuration
+## Configuration
 
-** Database Configuration precedence (highest to lowest):**
+### Database Configuration
+
+**Configuration precedence (highest to lowest):**
 1. CLI arguments: `--host`, `--port`, `--db`, `--user`, `--password`
-2. Environment variables: `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`
-3. `DATABASE_URL`: `postgresql://user:pass@host:port/database`
+2. Environment variables: `DOCS2DB_DB_HOST`, `DOCS2DB_DB_PORT`, `DOCS2DB_DB_DATABASE`, `DOCS2DB_DB_USER`, `DOCS2DB_DB_PASSWORD`
+3. `DOCS2DB_DB_URL`: `postgresql://user:pass@host:port/database`
 4. `postgres-compose.yml` in current directory
 5. Defaults: `localhost:5432`, user=`postgres`, password=`postgres`, db=`ragdb`
 
@@ -100,19 +108,31 @@ Docs2DB-API includes a native LlamaStack tool provider for agent-based RAG. See 
 uv run docs2db-api db-status
 
 # Environment variables
-export POSTGRES_HOST=prod.example.com
-export POSTGRES_DB=mydb
+export DOCS2DB_DB_HOST=prod.example.com
+export DOCS2DB_DB_DATABASE=mydb
 uv run docs2db-api db-status
 
-# DATABASE_URL (cloud providers)
-export DATABASE_URL="postgresql://user:pass@host:5432/db"
+# DOCS2DB_DB_URL (cloud providers)
+export DOCS2DB_DB_URL="postgresql://user:pass@host:5432/db"
 uv run docs2db-api db-status
 
 # CLI arguments
 uv run docs2db-api db-status --host localhost --db mydb
 ```
 
-**Note:** Don't mix `DATABASE_URL` with individual `POSTGRES_*` variables.
+**Note:** Don't mix `DOCS2DB_DB_URL` with individual `DOCS2DB_DB_*` variables.
+
+### LLM Configuration (Query Refinement)
+
+Configure the LLM used for query refinement:
+
+```bash
+export DOCS2DB_LLM_BASE_URL=http://localhost:11434      # OpenAI-compatible API (e.g., Ollama)
+export DOCS2DB_LLM_MODEL=qwen2.5:7b-instruct            # Model name
+export DOCS2DB_LLM_TIMEOUT=30.0                         # HTTP timeout (seconds)
+export DOCS2DB_LLM_TEMPERATURE=0.7                      # Generation temperature
+export DOCS2DB_LLM_MAX_TOKENS=500                       # Max tokens per response
+```
 
 ## RAG Configuration
 

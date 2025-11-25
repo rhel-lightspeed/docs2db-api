@@ -24,6 +24,7 @@ from typing import Any, Dict, List, Optional, Tuple, TypeVar, Union, cast, overl
 import httpx
 import structlog
 
+from docs2db_api.config import settings
 from docs2db_api.database import DatabaseManager, get_db_config
 from docs2db_api.embeddings import EMBEDDING_CONFIGS, GraniteEmbeddingProvider
 from docs2db_api.reranker import get_reranker
@@ -32,12 +33,12 @@ from docs2db_api.reranker import get_reranker
 logger = structlog.get_logger(__name__)
 
 # Code defaults for RAG settings (lowest priority in hierarchy)
-DEFAULT_SIMILARITY_THRESHOLD: float = 0.7
-DEFAULT_MAX_CHUNKS: int = 10
-DEFAULT_MAX_TOKENS_IN_CONTEXT: int = 4096
-DEFAULT_ENABLE_QUESTION_REFINEMENT: bool = True
-DEFAULT_ENABLE_RERANKING: bool = True
-DEFAULT_REFINEMENT_QUESTIONS_COUNT: int = 5
+DEFAULT_SIMILARITY_THRESHOLD: float = settings.rag.similarity_threshold
+DEFAULT_MAX_CHUNKS: int = settings.rag.max_chunks
+DEFAULT_MAX_TOKENS_IN_CONTEXT: int = settings.rag.max_tokens_in_context
+DEFAULT_ENABLE_QUESTION_REFINEMENT: bool = settings.rag.enable_question_refinement
+DEFAULT_ENABLE_RERANKING: bool = settings.rag.enable_reranking
+DEFAULT_REFINEMENT_QUESTIONS_COUNT: int = settings.rag.refinement_questions_count
 
 DEFAULT_RAG_SETTINGS: Dict[str, Union[float, int, bool]] = {
     "similarity_threshold": DEFAULT_SIMILARITY_THRESHOLD,
@@ -103,6 +104,7 @@ def _get_setting(
     
     # 1. CLI/kwargs (config value)
     if config_value is not None:
+        logger.debug(f"{env_var}: using config value = {config_value}")
         return config_value
     
     # 2. Environment variable
@@ -110,31 +112,44 @@ def _get_setting(
     if env_value is not None:
         try:
             if setting_type == bool:
-                return env_value.lower() in ("true", "1", "yes")
+                result = env_value.lower() in ("true", "1", "yes")
             elif setting_type == int:
-                return int(env_value)
+                result = int(env_value)
             elif setting_type == float:
-                return float(env_value)
+                result = float(env_value)
             else:
-                return env_value
+                result = env_value
+            logger.debug(f"{env_var}: using env value = {result}")
+            return result
         except (ValueError, AttributeError):
             logger.warning(f"Invalid environment variable {env_var}={env_value}, ignoring")
     
     # 3. Database value
     if db_value is not None:
+        logger.debug(f"{env_var}: using database value = {db_value}")
         return db_value
     
     # 4. Code default
+    logger.debug(f"{env_var}: using default value = {default_value}")
     return default_value
 
 
 class LLMClient:
-    """LLM client using OpenAI-compatible API for query refinement."""
+    """LLM client using OpenAI-compatible API for query refinement.
     
-    def __init__(self, base_url: str = "http://localhost:11434", model: str = "qwen2.5:7b-instruct"):
-        self.base_url = base_url.rstrip('/')
-        self.model = model
-        self.client = httpx.AsyncClient(timeout=30.0)
+    Configuration via Pydantic settings (environment variables with DOCS2DB_LLM_ prefix):
+    - DOCS2DB_LLM_BASE_URL: Base URL for OpenAI-compatible API (default: http://localhost:11434)
+    - DOCS2DB_LLM_MODEL: Model name to use (default: qwen2.5:7b-instruct)
+    - DOCS2DB_LLM_TIMEOUT: HTTP client timeout in seconds (default: 30.0)
+    - DOCS2DB_LLM_TEMPERATURE: LLM temperature for generation (default: 0.7)
+    - DOCS2DB_LLM_MAX_TOKENS: Maximum tokens for LLM response (default: 500)
+    """
+    
+    def __init__(self, base_url: Optional[str] = None, model: Optional[str] = None):
+        # Allow constructor params to override settings (highest priority)
+        self.base_url = (base_url or settings.llm.base_url).rstrip('/')
+        self.model = model or settings.llm.model
+        self.client = httpx.AsyncClient(timeout=settings.llm.timeout)
         
     async def acomplete(self, prompt: str) -> str:
         """Complete a prompt using OpenAI-compatible API."""
@@ -145,8 +160,8 @@ class LLMClient:
                     "model": self.model,
                     "messages": [{"role": "user", "content": prompt}],
                     "stream": False,
-                    "temperature": 0.7,
-                    "max_tokens": 500,
+                    "temperature": settings.llm.temperature,
+                    "max_tokens": settings.llm.max_tokens,
                 }
             )
             response.raise_for_status()
@@ -309,7 +324,7 @@ class UniversalRAGEngine:
                 password=self._db_config_dict["password"],
             )
         else:
-            logger.info("Auto-detecting database configuration")
+            logger.info("Detecting database configuration")
             detected_config = get_db_config()
             self.db_manager = DatabaseManager(
                 host=detected_config["host"],
@@ -321,7 +336,6 @@ class UniversalRAGEngine:
 
         # Auto-detect model from database if not specified
         if self.config.model_name is None:
-            logger.info("Model not specified, querying database for available models...")
             async with await self.db_manager.get_direct_connection() as conn:
                 result = await conn.execute(
                     "SELECT name, dimensions, provider FROM models ORDER BY created_at DESC"
@@ -337,14 +351,14 @@ class UniversalRAGEngine:
                 if len(models) > 1:
                     model_names = [row[0] for row in models]
                     logger.warning(
-                        f"Multiple models found in database: {model_names}. "
+                        f"Multiple embedding models found: {model_names}. "
                         f"Using most recent: {models[0][0]}"
                     )
                 
                 # Use the most recently created model
                 self.config.model_name = models[0][0]
                 logger.info(
-                    f"✅ Auto-detected model: {self.config.model_name} "
+                    f"Model detected: {self.config.model_name} "
                     f"(dimensions: {models[0][1]}, provider: {models[0][2]})"
                 )
 
@@ -356,10 +370,29 @@ class UniversalRAGEngine:
             )
 
         self.model_config = EMBEDDING_CONFIGS[self.config.model_name]
-        logger.info(f"Initialized RAG engine with model: {self.config.model_name}")
+        logger.info(f"RAG engine initialized with model: {self.config.model_name}")
 
         # Apply settings hierarchy: CLI/kwargs → env → database → defaults
         await self._apply_settings_hierarchy()
+
+        # Auto-create LLM client if refinement is enabled but no client provided
+        if self.config.enable_question_refinement and self.llm_client is None:
+            logger.info(
+                "Question refinement enabled, no llm_client provided. "
+                "Creating LLMClient from environment configuration."
+            )
+            try:
+                self.llm_client = LLMClient()
+                logger.info(
+                    f"LLMClient created: base_url={self.llm_client.base_url}, "
+                    f"model={self.llm_client.model}"
+                )
+            except Exception as e:
+                logger.warning(
+                    f"Failed to create LLMClient: {e}. "
+                    "Question refinement will be skipped."
+                )
+                self.llm_client = None
 
         # Initialize embedding provider
         self.embedding_provider = self._get_embedding_provider()
@@ -373,6 +406,10 @@ class UniversalRAGEngine:
         assert self.config.enable_question_refinement is not None, "enable_question_refinement must be set"
         assert self.config.enable_reranking is not None, "enable_reranking must be set"
         assert self.config.refinement_questions_count is not None, "refinement_questions_count must be set"
+        
+        # Warm up cross-encoder reranker if enabled
+        if self.config.enable_reranking:
+            await self._warmup_reranker()
 
     async def _apply_settings_hierarchy(self) -> None:
         """Apply settings hierarchy: CLI/kwargs → env → database → defaults.
@@ -413,7 +450,7 @@ class UniversalRAGEngine:
                         "max_tokens_in_context": int(row[5]) if row[5] is not None else None,
                         "refinement_questions_count": int(row[6]) if row[6] is not None else None,
                     }
-                    logger.info("✅ Loaded RAG settings from database")
+                    logger.info("Loaded RAG settings from database")
                 else:
                     logger.info("No RAG settings found in database, using defaults")
         except Exception as e:
@@ -425,7 +462,7 @@ class UniversalRAGEngine:
         # Apply to each config field
         self.config.similarity_threshold = _get_setting(
             self.config.similarity_threshold,
-            "SIMILARITY_THRESHOLD",
+            "DOCS2DB_RAG_SIMILARITY_THRESHOLD",
             cast(Optional[float], db_settings.get("similarity_threshold")),
             DEFAULT_SIMILARITY_THRESHOLD,
             float,
@@ -434,7 +471,7 @@ class UniversalRAGEngine:
         
         self.config.max_chunks = _get_setting(
             self.config.max_chunks,
-            "MAX_CHUNKS",
+            "DOCS2DB_RAG_MAX_CHUNKS",
             cast(Optional[int], db_settings.get("max_chunks")),
             DEFAULT_MAX_CHUNKS,
             int,
@@ -443,7 +480,7 @@ class UniversalRAGEngine:
         
         self.config.max_tokens_in_context = _get_setting(
             self.config.max_tokens_in_context,
-            "MAX_TOKENS_IN_CONTEXT",
+            "DOCS2DB_RAG_MAX_TOKENS_IN_CONTEXT",
             cast(Optional[int], db_settings.get("max_tokens_in_context")),
             DEFAULT_MAX_TOKENS_IN_CONTEXT,
             int,
@@ -452,7 +489,7 @@ class UniversalRAGEngine:
         
         self.config.enable_question_refinement = _get_setting(
             self.config.enable_question_refinement,
-            "ENABLE_QUESTION_REFINEMENT",
+            "DOCS2DB_RAG_ENABLE_QUESTION_REFINEMENT",
             cast(Optional[bool], db_settings.get("enable_refinement")),
             DEFAULT_ENABLE_QUESTION_REFINEMENT,
             bool,
@@ -461,7 +498,7 @@ class UniversalRAGEngine:
         
         self.config.enable_reranking = _get_setting(
             self.config.enable_reranking,
-            "ENABLE_RERANKING",
+            "DOCS2DB_RAG_ENABLE_RERANKING",
             cast(Optional[bool], db_settings.get("enable_reranking")),
             DEFAULT_ENABLE_RERANKING,
             bool,
@@ -470,7 +507,7 @@ class UniversalRAGEngine:
         
         self.config.refinement_questions_count = _get_setting(
             self.config.refinement_questions_count,
-            "REFINEMENT_QUESTIONS_COUNT",
+            "DOCS2DB_RAG_REFINEMENT_QUESTIONS_COUNT",
             cast(Optional[int], db_settings.get("refinement_questions_count")),
             DEFAULT_REFINEMENT_QUESTIONS_COUNT,
             int,
@@ -478,16 +515,18 @@ class UniversalRAGEngine:
         )
         
         # Apply hierarchy for refinement prompt
+        # Priority: constructor arg → settings → database → None (use default template)
         if self.refinement_prompt is None:
-            env_prompt = os.getenv("REFINEMENT_PROMPT")
-            if env_prompt:
-                self.refinement_prompt = env_prompt
+            if settings.rag.refinement_prompt:
+                self.refinement_prompt = settings.rag.refinement_prompt
+                logger.debug("DOCS2DB_RAG_REFINEMENT_PROMPT: using settings value")
             elif db_refinement_prompt:
                 self.refinement_prompt = db_refinement_prompt
+                logger.debug("DOCS2DB_RAG_REFINEMENT_PROMPT: using database value")
             # Otherwise it stays None and will use default REFINEMENT_PROMPT_TEMPLATE
         
         logger.info(
-            f"📋 Final RAG settings: threshold={self.config.similarity_threshold}, "
+            f"RAG settings: threshold={self.config.similarity_threshold}, "
             f"max_chunks={self.config.max_chunks}, refinement={self.config.enable_question_refinement}, "
             f"reranking={self.config.enable_reranking}"
         )
@@ -560,30 +599,92 @@ class UniversalRAGEngine:
             ),
         )
 
+        logger.debug(
+            f"RAG search configuration:\n"
+            f"  model_name: {search_config.model_name}\n"
+            f"  similarity_threshold: {search_config.similarity_threshold}\n"
+            f"  max_chunks: {search_config.max_chunks}\n"
+            f"  max_tokens_in_context: {search_config.max_tokens_in_context}\n"
+            f"  enable_question_refinement: {search_config.enable_question_refinement}\n"
+            f"  enable_reranking: {search_config.enable_reranking}\n"
+            f"  refinement_questions_count: {search_config.refinement_questions_count}"
+        )
+
         try:
+            import time
+            timings = {}
+            start_total = time.time()
+            
             # Step 1: Question refinement (if enabled)
             refined_questions = None
-            if search_config.enable_question_refinement and self.llm_client:
-                refined_questions = await self._refine_questions(query, search_config)
-                # Use refined questions if available, otherwise use original query
-                search_query = refined_questions if refined_questions else query
+            if search_config.enable_question_refinement:
+                if not self.llm_client:
+                    logger.warning(
+                        "⚠️  Question refinement is enabled but no llm_client provided. "
+                        "Skipping refinement. To enable refinement, pass an llm_client to UniversalRAGEngine() "
+                        "or set DOCS2DB_LLM_BASE_URL environment variable."
+                    )
+                    logger.debug(f"Config: enable_question_refinement={search_config.enable_question_refinement}, llm_client={self.llm_client}")
+                    timings["refinement"] = 0.0
+                    search_query = query
+                else:
+                    logger.debug(f"Starting question refinement for query: {query[:100]}...")
+                    start = time.time()
+                    refined_questions = await self._refine_questions(query, search_config)
+                    timings["refinement"] = time.time() - start
+                    logger.debug(f"Refinement result: {refined_questions[:200] if refined_questions else 'None'}...")
+                    
+                    # Handle "EMPTY" response - skip RAG retrieval for non-technical questions
+                    if refined_questions == "EMPTY":
+                        total_time = time.time() - start_total
+                        logger.info(
+                            f"Skipping RAG retrieval - question not suitable for technical documentation search "
+                            f"(refinement: {timings['refinement']:.3f}s, total: {total_time:.3f}s)"
+                        )
+                        return RAGResult(
+                            query=query,
+                            documents=[],
+                            refined_questions=None,
+                            metadata={
+                                "model_name": search_config.model_name,
+                                "documents_found": 0,
+                                "question_refinement_enabled": True,
+                                "refinement_result": "EMPTY",
+                                "features_used": ["question_refinement"],
+                            },
+                        )
+                    
+                    # Use refined questions if available, otherwise use original query
+                    search_query = refined_questions if refined_questions else query
             else:
+                timings["refinement"] = 0.0
                 search_query = query
 
             # Step 2: Generate query embeddings
+            start = time.time()
             query_embeddings = await self._generate_query_embeddings(search_query)
+            timings["embedding"] = time.time() - start
 
             # Step 3: Retrieve similar documents using hybrid search
+            start = time.time()
             documents = await self._retrieve_similar_documents(
                 query_embeddings, search_config, query
             )
+            timings["hybrid_search"] = time.time() - start
+            timings["candidates_retrieved"] = len(documents)
 
             # Step 4: Rerank results with cross-encoder (if enabled)
             if documents and search_config.enable_reranking:
+                start = time.time()
                 documents = await self._rerank_documents(query, documents)
+                timings["reranking"] = time.time() - start
+            else:
+                timings["reranking"] = 0.0
 
             # Step 5: Post-process and filter results
+            start = time.time()
             filtered_documents = self._post_process_results(documents, search_config)
+            timings["post_process"] = time.time() - start
 
             # Create metadata
             metadata = {
@@ -597,8 +698,17 @@ class UniversalRAGEngine:
                 ),
             }
 
+            # Calculate total time and log comprehensive timing breakdown
+            timings["total"] = time.time() - start_total
+            
             logger.info(
-                f"RAG search completed - {len(filtered_documents)} documents found"
+                f"RAG search completed - {len(filtered_documents)} documents found:\n"
+                f"  Refinement: {timings['refinement']:.3f}s\n"
+                f"  Embedding: {timings['embedding']:.3f}s\n"
+                f"  Hybrid search: {timings['hybrid_search']:.3f}s (retrieved {timings['candidates_retrieved']} candidates)\n"
+                f"  Reranking: {timings['reranking']:.3f}s\n"
+                f"  Post-process: {timings['post_process']:.3f}s (filtered to {len(filtered_documents)} docs)\n"
+                f"  Total: {timings['total']:.3f}s"
             )
 
             return RAGResult(
@@ -612,10 +722,90 @@ class UniversalRAGEngine:
             logger.error(f"RAG search failed: {e}")
             raise
 
+    def _clean_question_formatting(self, question: str) -> str:
+        """
+        Clean formatting issues from a question.
+        
+        Removes numbered lists, quotes, markdown formatting.
+        """
+        import re
+        
+        cleaned = question.strip()
+        
+        # Remove numbered list prefixes (e.g., "1. ", "2) ", "3. ")
+        cleaned = re.sub(r"^\s*\d+[\.)]\s+", "", cleaned)
+        
+        # Remove quotes wrapping the entire question
+        if re.match(r'^["\'`].*["\'`]$', cleaned):
+            cleaned = cleaned[1:-1].strip()
+        
+        # Remove markdown bullet points at the start
+        if cleaned.startswith("- ") or cleaned.startswith("* "):
+            cleaned = cleaned[2:].strip()
+        
+        # Remove markdown headers at the start
+        cleaned = re.sub(r"^#+\s+", "", cleaned)
+        
+        # Remove bold/italic markdown (but keep the text)
+        cleaned = re.sub(r"\*\*([^*]+)\*\*", r"\1", cleaned)  # **bold**
+        cleaned = re.sub(r"__([^_]+)__", r"\1", cleaned)  # __bold__
+        cleaned = re.sub(r"\*([^*]+)\*", r"\1", cleaned)  # *italic*
+        cleaned = re.sub(r"_([^_]+)_", r"\1", cleaned)  # _italic_
+        
+        return cleaned
+    
+    def _validate_and_clean_refined_questions(self, refined_questions: str) -> str:
+        """
+        Parse, validate, and clean refined questions.
+        
+        Cleans formatting issues like numbered lists, markdown, quotes.
+        """
+        import re
+        
+        # Parse individual questions (split by newlines, filter empty lines)
+        question_lines = [q.strip() for q in refined_questions.split("\n") if q.strip()]
+        
+        # Clean each question
+        cleaned_questions = []
+        format_violations = []
+        
+        for i, question in enumerate(question_lines, 1):
+            # Check for violations BEFORE cleaning
+            violations = []
+            if re.match(r"^\s*\d+[\.)]\s", question):
+                violations.append("numbered list")
+            if re.match(r'^["\'`].*["\'`]$', question):
+                violations.append("wrapped in quotes")
+            if any([
+                question.strip().startswith("- "),
+                question.strip().startswith("* "),
+                "**" in question,
+                "__" in question,
+            ]):
+                violations.append("markdown formatting")
+            
+            # Clean the question
+            cleaned = self._clean_question_formatting(question)
+            cleaned_questions.append(cleaned)
+            
+            # Track violations for reporting
+            if violations:
+                format_violations.append((i, ", ".join(violations)))
+        
+        # Log all format violations that were auto-fixed
+        if format_violations:
+            logger.info("Auto-cleaned formatting issues:")
+            for q_num, violation_desc in format_violations:
+                logger.info(f"   Q{q_num}: Fixed {violation_desc}")
+        
+        return "\n".join(cleaned_questions)
+
     async def _refine_questions(self, query: str, config: RAGConfig) -> Optional[str]:
         """Generate refined, targeted questions for better retrieval (rlsapi pattern)"""
         
         # Use custom prompt if provided, otherwise use default template
+        if not self.refinement_prompt:
+            logger.warning("No refinement prompt provided, using default template")
         prompt_template = self.refinement_prompt if self.refinement_prompt else REFINEMENT_PROMPT_TEMPLATE
         prompt = prompt_template.format(question=query)
         
@@ -625,16 +815,21 @@ class UniversalRAGEngine:
             
             # Handle "EMPTY" response (query not technical/valid)
             if refined.strip() == "EMPTY":
-                logger.info("Query refinement returned 'EMPTY' - query may not be technical")
-                return None
+                logger.info(
+                    "Query refinement returned 'EMPTY' - question does not relate to database domain. "
+                    "Skipping RAG retrieval."
+                )
+                return "EMPTY"  # Return explicit marker instead of None
             
             # Clean up the response
             refined = refined.strip()
             if refined:
-                logger.info(f"🎯 Generated refined questions: {refined[:200]}...")
-                return refined
+                # Validate and clean formatting
+                cleaned = self._validate_and_clean_refined_questions(refined)
+                logger.info(f"Generated {len(cleaned.split(chr(10)))} refined questions")
+                return cleaned
             else:
-                logger.warning("Query refinement returned empty response")
+                logger.warning("Query refinement gave no response")
                 return None
                 
         except Exception as e:
@@ -720,6 +915,32 @@ class UniversalRAGEngine:
         except Exception as e:
             logger.error(f"Failed to retrieve similar documents: {e}")
             raise
+
+    async def _warmup_reranker(self) -> None:
+        """
+        Warm up the cross-encoder reranker model during startup.
+        
+        This ensures:
+        1. Model is downloaded and cached (fails fast if unavailable)
+        2. Model is loaded into memory (avoids cold start on first request)
+        
+        Raises:
+            Exception: If model cannot be loaded (e.g., offline deployment without cache)
+        """
+        try:
+            reranker = get_reranker()
+            # Run a dummy prediction to force model loading
+            dummy_query = "test query"
+            dummy_docs = [{"text": "test document content"}]
+            reranker.rerank(dummy_query, dummy_docs)
+            logger.info("Cross-encoder reranker ready")
+        except Exception as e:
+            logger.error(f"Failed to warm up reranker: {e}")
+            raise RuntimeError(
+                f"Cross-encoder reranker initialization failed: {e}. "
+                "In offline deployments, ensure the model is pre-cached. "
+                "Model: cross-encoder/ms-marco-MiniLM-L-6-v2"
+            ) from e
 
     async def _rerank_documents(
         self, query: str, documents: List[Dict[str, Any]]

@@ -103,32 +103,36 @@ class TestEnvironmentVariableParsing:
 
     def test_env_var_float_parsing(self, monkeypatch):
         """Test that float environment variables are parsed correctly."""
-        monkeypatch.setenv("SIMILARITY_THRESHOLD", "0.88")
+        monkeypatch.setenv("DOCS2DB_RAG_SIMILARITY_THRESHOLD", "0.88")
 
-        value = os.getenv("SIMILARITY_THRESHOLD")
+        value = os.getenv("DOCS2DB_RAG_SIMILARITY_THRESHOLD")
+        assert value is not None
         assert value == "0.88"
         assert float(value) == 0.88
 
     def test_env_var_int_parsing(self, monkeypatch):
         """Test that integer environment variables are parsed correctly."""
-        monkeypatch.setenv("MAX_CHUNKS", "25")
+        monkeypatch.setenv("DOCS2DB_RAG_MAX_CHUNKS", "25")
 
-        value = os.getenv("MAX_CHUNKS")
+        value = os.getenv("DOCS2DB_RAG_MAX_CHUNKS")
+        assert value is not None
         assert value == "25"
         assert int(value) == 25
 
     def test_env_var_bool_parsing_true(self, monkeypatch):
         """Test that boolean environment variables parse 'true' correctly."""
         for true_value in ["true", "True", "TRUE", "1", "yes", "Yes", "YES"]:
-            monkeypatch.setenv("ENABLE_RERANKING", true_value)
-            value = os.getenv("ENABLE_RERANKING")
+            monkeypatch.setenv("DOCS2DB_RAG_ENABLE_RERANKING", true_value)
+            value = os.getenv("DOCS2DB_RAG_ENABLE_RERANKING")
+            assert value is not None
             assert value.lower() in ("true", "1", "yes")
 
     def test_env_var_bool_parsing_false(self, monkeypatch):
         """Test that boolean environment variables parse 'false' correctly."""
         for false_value in ["false", "False", "FALSE", "0", "no", "No", "NO"]:
-            monkeypatch.setenv("ENABLE_RERANKING", false_value)
-            value = os.getenv("ENABLE_RERANKING")
+            monkeypatch.setenv("DOCS2DB_RAG_ENABLE_RERANKING", false_value)
+            value = os.getenv("DOCS2DB_RAG_ENABLE_RERANKING")
+            assert value is not None
             assert value.lower() in ("false", "0", "no")
 
     def test_env_var_not_set(self):

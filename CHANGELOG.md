@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2025-11-24
+
+### Added
+- **Pydantic Settings**: Comprehensive configuration system with nested settings groups (`LLMSettings`, `DatabaseSettings`, `RAGSettings`, `LoggingSettings`)
+  - Environment variable prefixes: `DOCS2DB_LLM_*`, `DOCS2DB_DB_*`, `DOCS2DB_RAG_*`, `DOCS2DB_LOG_LEVEL`
+  - Type validation and coercion for all configuration values
+  - `extra="ignore"` to safely coexist with other applications' environment variables
+- **LLM Query Refinement Features**:
+  - EMPTY response handling - skips RAG retrieval for non-technical questions (greetings, gibberish, etc.)
+  - Auto-formatting cleanup for refined questions (removes numbering, quotes, markdown)
+- **Cross-encoder Reranker Warmup**: Model loads and initializes during startup for faster first-request response and start-up time notification of a missing model.
+- **Auto-initialization for LLM client**: When query refinement is enabled but no LLM client provided, automatically creates one from environment configuration
+- **Comprehensive logging** throughout RAG pipeline with timing breakdowns and feature usage tracking
+
+### Changed
+- **Database configuration** now uses Pydantic settings instead of direct `os.getenv()` calls
+  - New prefixed environment variables: `DOCS2DB_DB_*` (replaces `POSTGRES_*`)
+  - Cleaner precedence hierarchy: Pydantic settings → `DOCS2DB_DB_URL` → compose file → defaults
+- **Logging configuration** centralized in Pydantic settings (`DOCS2DB_LOG_LEVEL`)
+- **RAG defaults** now sourced from Pydantic settings for consistency
+- Improved error messages and debug logging throughout RAG engine
+- Enhanced question refinement with format validation and auto-correction
+- EMPTY response behavior now skips RAG retrieval
+
+### Fixed
+- PyTorch/torchvision version compatibility issues
+- README async example corrections
+- Type checking issues in tests with Optional environment variables
+
 ## [0.1.0] - 2025-11-12
 
 ### Added
@@ -43,6 +72,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 See [LICENSE](LICENSE) for details.
 
-[Unreleased]: https://github.com/rhel-lightspeed/docs2db-api/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/rhel-lightspeed/docs2db-api/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/rhel-lightspeed/docs2db-api/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/rhel-lightspeed/docs2db-api/releases/tag/v0.1.0
 

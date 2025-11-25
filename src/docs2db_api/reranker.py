@@ -1,6 +1,6 @@
 """Reranker implementation for improving search result quality."""
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import structlog
 from sentence_transformers import CrossEncoder
@@ -26,7 +26,6 @@ class Reranker:
         """
         self.model_name = model_name
         self._model = None
-        logger.info(f"Initializing reranker with model: {model_name}")
 
     @property
     def model(self):
@@ -40,7 +39,7 @@ class Reranker:
         self,
         query: str,
         documents: List[Dict[str, Any]],
-        top_k: int = None,
+        top_k: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
         """
         Rerank documents based on their relevance to the query.
