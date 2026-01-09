@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-01-09
+
+### Added
+- **Shell-friendly query output**: New `--format text` option for `query` command outputs clean document text without logs, suitable for shell scripts and LLM prompt injection
+- **Context size limiting**: New `--max-chars` option truncates output to fit LLM token budgets
+
+### Changed
+- Query command now supports two output formats: `text` (clean) and `log` (verbose, default)
+
 ## [0.2.0] - 2025-11-24
 
 ### Added
@@ -72,7 +81,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 See [LICENSE](LICENSE) for details.
 
-[Unreleased]: https://github.com/rhel-lightspeed/docs2db-api/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/rhel-lightspeed/docs2db-api/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/rhel-lightspeed/docs2db-api/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/rhel-lightspeed/docs2db-api/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/rhel-lightspeed/docs2db-api/releases/tag/v0.1.0
 

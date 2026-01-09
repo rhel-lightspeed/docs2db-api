@@ -1,6 +1,9 @@
 """RAG Pipeline Tools for docs2db"""
 
 import asyncio
+import os
+import sys
+from enum import Enum
 from typing import Annotated, Optional
 
 import structlog
@@ -20,6 +23,20 @@ from docs2db_api.exceptions import Docs2DBException
 from docs2db_api.rag.engine import RAGConfig, UniversalRAGEngine
 
 logger = structlog.get_logger(__name__)
+
+
+def _suppress_all_logging() -> None:
+    """Suppress all logging output for clean shell-friendly output."""
+    # Redirect structlog output to /dev/null
+    structlog.configure(
+        logger_factory=structlog.PrintLoggerFactory(file=open(os.devnull, "w")),
+    )
+
+
+class OutputFormat(str, Enum):
+    """Output format for query results."""
+    text = "text"  # Plain text, shell-friendly
+    log = "log"    # Verbose logs (default)
 
 app = typer.Typer(help="Make a RAG Database from source content")
 
@@ -205,8 +222,21 @@ def query(
         Optional[str],
         typer.Option(help="Custom prompt for query refinement"),
     ] = None,
+    format: Annotated[
+        OutputFormat,
+        typer.Option(help="Output format: text (results only) or log (verbose, default)"),
+    ] = OutputFormat.log,
+    max_chars: Annotated[
+        Optional[int],
+        typer.Option(help="Maximum total characters for text output"),
+    ] = None,
 ) -> None:
     """Search documents using RAG engine with hybrid search and reranking."""
+    # For text/json formats, suppress all logging to keep output clean
+    quiet_mode = format != OutputFormat.log
+    if quiet_mode:
+        _suppress_all_logging()
+
     try:
         config = RAGConfig(
             model_name=model,
@@ -218,36 +248,75 @@ def query(
         async def run_query():
             engine = UniversalRAGEngine(config, refinement_prompt=refinement_prompt)
             await engine.start()
-            
-            model_info = f"model={engine.config.model_name}" if engine.config.model_name else "model=auto-detected"
-            logger.info("Searching", query=query_text, model_info=model_info, threshold=threshold, limit=limit)
+
+            if format == OutputFormat.log:
+                model_info = f"model={engine.config.model_name}" if engine.config.model_name else "model=auto-detected"
+                logger.info("Searching", query=query_text, model_info=model_info, threshold=threshold, limit=limit)
 
             result = await engine.search_documents(query_text)
 
-            logger.info("Found documents", count=len(result.documents))
-
-            if result.metadata:
-                metadata_lines = ["Metadata:"]
-                for key, value in result.metadata.items():
-                    metadata_lines.append(f"{key:<20} {value}")
-                logger.info("\n".join(metadata_lines))
-
-            if result.refined_questions:
-                logger.info("Refined Questions", questions=result.refined_questions)
-
-            logger.info("Documents found")
-            for i, doc in enumerate(result.documents, 1):
-                text_preview = doc['text'][:300] + ('...' if len(doc['text']) > 300 else '')
-                logger.info(
-                    f"Document\n{text_preview}",
-                    index=i,
-                    similarity=doc['similarity_score'],
-                    source=doc['document_path']
-                )
+            # Output based on format
+            if format == OutputFormat.text:
+                _output_text(result, max_chars)
+            else:
+                _output_log(result)
 
         asyncio.run(run_query())
 
     except Exception as e:
-        logger.error(f"Query failed: {e}")
+        if format == OutputFormat.log:
+            logger.error(f"Query failed: {e}")
+        else:
+            print(f"Error: {e}", file=sys.stderr)
         raise typer.Exit(1)
+
+
+def _output_text(result, max_chars: Optional[int]) -> None:
+    """Output documents as plain text, suitable for shell scripts."""
+    separator = "\n---\n"
+    texts = [doc["text"] for doc in result.documents]
+    
+    if max_chars:
+        # Truncate to max_chars, trying to include as many docs as possible
+        output_parts = []
+        remaining = max_chars
+        for text in texts:
+            if remaining <= 0:
+                break
+            if len(text) <= remaining:
+                output_parts.append(text)
+                remaining -= len(text) + len(separator)
+            else:
+                # Truncate last doc to fit
+                output_parts.append(text[:remaining] + "...")
+                break
+        output = separator.join(output_parts)
+    else:
+        output = separator.join(texts)
+    
+    print(output)
+
+
+def _output_log(result) -> None:
+    """Output documents with verbose logging (original behavior)."""
+    logger.info("Found documents", count=len(result.documents))
+
+    if result.metadata:
+        metadata_lines = ["Metadata:"]
+        for key, value in result.metadata.items():
+            metadata_lines.append(f"{key:<20} {value}")
+        logger.info("\n".join(metadata_lines))
+
+    if result.refined_questions:
+        logger.info("Refined Questions", questions=result.refined_questions)
+
+    logger.info("Documents found")
+    for i, doc in enumerate(result.documents, 1):
+        text_preview = doc["text"][:300] + ("..." if len(doc["text"]) > 300 else "")
+        logger.info(
+            f"Document\n{text_preview}",
+            index=i,
+            similarity=doc["similarity_score"],
+            source=doc["document_path"],
+        )
 

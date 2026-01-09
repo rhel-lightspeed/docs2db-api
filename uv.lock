@@ -554,7 +554,7 @@ wheels = [
 
 [[package]]
 name = "docs2db-api"
-version = "0.2.0"
+version = "0.3.0"
 source = { editable = "." }
 dependencies = [
     { name = "cachetools" },
