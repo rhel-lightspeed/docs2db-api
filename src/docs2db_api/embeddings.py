@@ -6,6 +6,8 @@ import structlog
 import torch
 from transformers import AutoModel, AutoTokenizer
 
+from docs2db_api.config import settings
+
 logger = structlog.get_logger(__name__)
 
 
@@ -60,17 +62,24 @@ class GraniteEmbeddingProvider(EmbeddingProvider):
                 )  # Limit to 40% of memory per worker
 
             try:
+                offline = settings.embedding.offline
                 self._model = AutoModel.from_pretrained(
-                    self.model, local_files_only=True
+                    self.model, local_files_only=offline
                 )
                 self._tokenizer = AutoTokenizer.from_pretrained(
-                    self.model, local_files_only=True
+                    self.model, local_files_only=offline
                 )
             except Exception as e:
+                if settings.embedding.offline:
+                    raise ValueError(
+                        f"Granite model '{self.model}' not found locally (DOCS2DB_OFFLINE=true). "
+                        f"Download it first by running without DOCS2DB_OFFLINE set. "
+                        f"Original error: {e}"
+                    ) from e
                 raise ValueError(
-                    f"Granite model '{self.model}' not found locally. "
-                    f"Run: uv run docs2db-api download-model granite-30m-english"
-                    f" Original error: {e}"
+                    f"Failed to load Granite model '{self.model}'. "
+                    f"Check your internet connection for first-time download. "
+                    f"Original error: {e}"
                 ) from e
 
             self._model.eval()

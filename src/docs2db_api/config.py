@@ -109,6 +109,19 @@ class LoggingSettings(BaseSettings):
     )
 
 
+class EmbeddingSettings(BaseSettings):
+    """Embedding model configuration."""
+
+    offline: bool = Field(
+        default=False,
+        description="Run in offline mode (only use locally cached models)",
+    )
+
+    model_config = SettingsConfigDict(
+        env_prefix="DOCS2DB_", env_file=".env", extra="ignore"
+    )
+
+
 class Settings(BaseSettings):
     """Main application settings."""
 
@@ -116,6 +129,7 @@ class Settings(BaseSettings):
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
     rag: RAGSettings = Field(default_factory=RAGSettings)
     logging: LoggingSettings = Field(default_factory=LoggingSettings)
+    embedding: EmbeddingSettings = Field(default_factory=EmbeddingSettings)
 
     model_config = SettingsConfigDict(
         env_file=".env", env_file_encoding="utf-8", extra="ignore"

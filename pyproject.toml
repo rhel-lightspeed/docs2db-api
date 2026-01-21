@@ -1,6 +1,6 @@
 [project]
 name = "docs2db-api"
-version = "0.3.0"
+version = "0.3.1"
 description = "Query Docs2DB RAG databases with hybrid search and reranking"
 readme = "README.md"
 authors = [{ name = "Ellis Low", email = "elow@redhat.com" }]

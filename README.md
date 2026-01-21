@@ -134,6 +134,14 @@ export DOCS2DB_LLM_TEMPERATURE=0.7                      # Generation temperature
 export DOCS2DB_LLM_MAX_TOKENS=500                       # Max tokens per response
 ```
 
+### Embedding Configuration
+
+```bash
+export DOCS2DB_OFFLINE=true    # Only use locally cached embedding model (no downloads)
+```
+
+By default, the embedding model is downloaded automatically on first use. Set `DOCS2DB_OFFLINE=true` for airgapped/offline environments where the model must already be cached.
+
 ## RAG Configuration
 
 RAG settings control retrieval behavior (similarity thresholds, reranking, refinement, etc.) and can be stored in the database or provided at query time.
