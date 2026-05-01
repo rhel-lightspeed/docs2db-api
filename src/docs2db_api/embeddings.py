@@ -113,7 +113,7 @@ class GraniteEmbeddingProvider(EmbeddingProvider):
         embeddings = torch.nn.functional.normalize(embeddings, dim=1)
 
         # Convert to list
-        result = embeddings.cpu().numpy().tolist()
+        result = embeddings.cpu().float().numpy().tolist()
 
         return result
 
