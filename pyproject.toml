@@ -99,14 +99,13 @@ addopts = [
     "--cov-branch",
     "--color=yes",
 ]
-# Having problems with tests? Uncomment the following line to see more output.
-# log_cli = false
-# log_level = "DEBUG"
+asyncio_mode = "auto"
 log_format = "%(asctime)s %(levelname)s %(message)s"
 log_date_format = "%Y-%m-%d %H:%M:%S"
 testpaths = ["tests"]
 markers = [
-    "no_ci: marks tests that should not run in CI (require external services, podman, etc.)"
+    "no_ci: marks tests that should not run in CI (require external services, podman, etc.)",
+    "integration: marks tests that require a running PostgreSQL instance",
 ]
 
 [tool.pyright]

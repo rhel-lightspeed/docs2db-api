@@ -1,8 +1,58 @@
 """Pytest fixtures and configuration for docs2db-api tests."""
 
+import os
 from unittest.mock import AsyncMock, MagicMock
 
+import psycopg
 import pytest
+
+_TEST_DB_CONFIG = {
+    "host": os.getenv("TEST_DB_HOST", "localhost"),
+    "port": int(os.getenv("TEST_DB_PORT", "5433")),
+    "database": os.getenv("TEST_DB_NAME", "test_docs2db"),
+    "user": os.getenv("TEST_DB_USER", "test_user"),
+    "password": os.getenv("TEST_DB_PASSWORD", "test_password"),
+}
+
+
+@pytest.fixture(scope="session")
+def pg_available() -> bool:
+    """Session-scoped check: is the test PostgreSQL instance reachable?"""
+    cfg = _TEST_DB_CONFIG
+    conn_string = f"postgresql://{cfg['user']}:{cfg['password']}@{cfg['host']}:{cfg['port']}/{cfg['database']}"
+    try:
+        with psycopg.Connection.connect(conn_string, connect_timeout=2):
+            return True
+    except Exception:
+        return False
+
+
+@pytest.fixture
+def test_db_config() -> dict:
+    """Test database configuration dictionary."""
+    return _TEST_DB_CONFIG.copy()
+
+
+@pytest.fixture
+def skip_if_no_pg(pg_available: bool) -> None:
+    """Skip the test if PostgreSQL is not available on port 5433."""
+    if not pg_available:
+        pytest.skip("PostgreSQL not available on port 5433 — skipping integration test")
+
+
+@pytest.fixture
+async def pg_connection(pg_available: bool, test_db_config: dict):
+    """Async psycopg3 connection to test PostgreSQL; skips if unavailable."""
+    if not pg_available:
+        pytest.skip("PostgreSQL not available on port 5433 — skipping integration test")
+
+    cfg = test_db_config
+    conn_string = f"postgresql://{cfg['user']}:{cfg['password']}@{cfg['host']}:{cfg['port']}/{cfg['database']}"
+    conn = await psycopg.AsyncConnection.connect(conn_string)
+    try:
+        yield conn
+    finally:
+        await conn.close()
 
 
 @pytest.fixture
