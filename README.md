@@ -55,7 +55,7 @@ async def main():
     # Initialize engine with defaults (auto-detects database from environment)
     engine = UniversalRAGEngine()
     await engine.start()
-    
+
     # # Or with specific settings
     # config = RAGConfig(
     #     model_name="granite-30m-english",
@@ -71,7 +71,7 @@ async def main():
     # }
     # engine = UniversalRAGEngine(config=config, db_config=db_config)
     # await engine.start()
-    
+
     # Search
     result = await engine.search_documents("How do I configure authentication?")
     for doc in result.documents:

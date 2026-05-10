@@ -41,7 +41,7 @@ class Docs2DBRAGDemoClient:
             "max_chunks": kwargs.get("max_chunks", 5),
         }
 
-        print(f"📊 Parameters:")
+        print("📊 Parameters:")
         for key, value in params.items():
             print(f"   • {key}: {value}")
         print()
@@ -84,6 +84,7 @@ class Docs2DBRAGDemoClient:
         # Try to parse as JSON for structured data
         try:
             import json
+
             if isinstance(result_data, str):
                 data = json.loads(result_data)
             else:
@@ -93,9 +94,9 @@ class Docs2DBRAGDemoClient:
             if "documents" in data:
                 documents = data["documents"]
                 print(f"✅ Found {len(documents)} documents")
-                
+
                 if "refined_questions" in data and data["refined_questions"]:
-                    print(f"\n🎯 Refined Questions:")
+                    print("\n🎯 Refined Questions:")
                     refined_questions = data["refined_questions"]
                     if isinstance(refined_questions, str):
                         print(f"   {refined_questions}")
@@ -105,18 +106,18 @@ class Docs2DBRAGDemoClient:
                     print()
 
                 # Display each document
-                print(f"📄 Document Details:")
+                print("📄 Document Details:")
                 for i, doc in enumerate(documents, 1):
                     print(f"\n{i}. Similarity: {doc.get('similarity_score', 'N/A'):.3f}")
                     print(f"   Source: {doc.get('document_path', 'N/A')}")
-                    text = doc.get('text', '')
-                    preview = text[:200] + ('...' if len(text) > 200 else '')
+                    text = doc.get("text", "")
+                    preview = text[:200] + ("..." if len(text) > 200 else "")
                     print(f"   Preview: {preview}")
 
                 # Display metadata if available
                 if "metadata" in data:
                     metadata = data["metadata"]
-                    print(f"\n📈 Search Metadata:")
+                    print("\n📈 Search Metadata:")
                     for key, value in metadata.items():
                         print(f"   {key}: {value}")
 
@@ -146,7 +147,7 @@ class Docs2DBRAGDemoClient:
 
         # Call RAG tool
         result = self.call_rag_tool(query, **kwargs)
-        
+
         if result:
             self.display_rag_results(result)
             return True
@@ -194,7 +195,7 @@ def main():
 
     # Create client and run query
     client = Docs2DBRAGDemoClient(base_url=args.server_url)
-    
+
     kwargs = {
         "similarity_threshold": args.similarity_threshold,
         "max_chunks": args.max_chunks,
@@ -203,7 +204,7 @@ def main():
     }
 
     success = client.run_query(args.query, **kwargs)
-    
+
     if success:
         print("\n✅ RAG search completed successfully!")
     else:

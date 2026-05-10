@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- CI workflow (lint + test jobs with pgvector service container)
+- OpenSSF Scorecard workflow
+- Pre-commit configuration (ruff, gitleaks, pyright, pre-commit-hooks)
+- `.python-version` file pinned to 3.12
+- `renovate.json` for automated dependency updates
+- `SECURITY.md` with responsible disclosure policy
+- `CONTRIBUTING.md` with development workflow
+- `.coderabbit.yaml` with path-specific review instructions
+- `AGENTS.md` AI agent knowledge base
+- GitHub pull request template
+- `make test-ci` target (excludes `no_ci` marked tests)
+
 ## [0.3.1] - 2026-01-21
 
 ### Changed
@@ -95,4 +108,3 @@ See [LICENSE](LICENSE) for details.
 [0.3.0]: https://github.com/rhel-lightspeed/docs2db-api/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/rhel-lightspeed/docs2db-api/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/rhel-lightspeed/docs2db-api/releases/tag/v0.1.0
-

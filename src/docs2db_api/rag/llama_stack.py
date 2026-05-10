@@ -70,7 +70,7 @@ try:
         ToolInvocationResult,
         ToolRuntime,
     )
-    from llama_stack.apis.tools.tools import (
+    from llama_stack.apis.tools.tools import (  # pyright: ignore[reportMissingImports]
         ListToolDefsResponse,  # type: ignore[attr-defined, assignment]
         ToolDef,  # type: ignore[attr-defined, assignment]
     )
@@ -110,7 +110,7 @@ except ImportError:
             self.data = data
 
 
-class Docs2DBRAGAdapter(ToolRuntime):
+class Docs2DBRAGAdapter(ToolRuntime):  # type: ignore[misc]
     """
     Docs2DB RAG Tool Runtime Adapter for Llama Stack
 

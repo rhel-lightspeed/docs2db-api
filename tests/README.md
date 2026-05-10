@@ -100,4 +100,3 @@ Potential additions for the test suite:
 - Add tests for custom refinement prompts (when feature is more mature)
 - Add tests for search options override behavior
 - Consider snapshot testing for query results (once stable)
-

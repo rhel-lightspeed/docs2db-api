@@ -1,4 +1,4 @@
-.PHONY: test lint format clean help
+.PHONY: test test-ci lint format clean help
 
 help:
 	@echo "Available commands:"
@@ -9,6 +9,9 @@ help:
 
 test:
 	uv run pytest
+
+test-ci:
+	uv run pytest -m "not no_ci"
 
 lint:
 	uv run ruff check .
@@ -24,4 +27,3 @@ clean:
 	find . -type d -name .ruff_cache -exec rm -rf {} + 2>/dev/null || true
 	find . -type f -name "*.pyc" -delete
 	rm -rf htmlcov coverage.xml .coverage
-

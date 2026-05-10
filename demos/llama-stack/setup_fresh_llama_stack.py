@@ -29,9 +29,7 @@ def run_command(cmd, cwd=None, check=True):
     if isinstance(cmd, str):
         cmd = cmd.split()
 
-    result = subprocess.run(
-        cmd, cwd=cwd, capture_output=True, text=True, check=False
-    )
+    result = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, check=False)
 
     if result.returncode != 0 and check:
         print(f"❌ Command failed: {' '.join(cmd)}")
@@ -106,17 +104,15 @@ def install_llama_stack(target_path):
 def install_docs2db_rag(target_path):
     """Install Docs2DB RAG package and dependencies"""
     print(f"\n📦 Installing Docs2DB RAG in {target_path}")
-    
+
     # Get the path to the docs2db package (parent of this script's directory)
     script_dir = Path(__file__).parent
     # Go up from demos/llama-stack to docs2db root
     docs2db_path = script_dir.parent.parent
-    
+
     print(f"📦 Installing Docs2DB from: {docs2db_path}")
-    run_command(
-        ["uv", "add", "--editable", str(docs2db_path)], cwd=target_path
-    )
-    
+    run_command(["uv", "add", "--editable", str(docs2db_path)], cwd=target_path)
+
     # Install Docs2DB-specific dependencies
     print("📦 Installing Docs2DB RAG dependencies...")
     run_command(
@@ -126,7 +122,7 @@ def install_docs2db_rag(target_path):
             "psycopg2-binary",
             "transformers",
             "torch",
-            "sentence-transformers", 
+            "sentence-transformers",
             "scikit-learn",
             "nltk",
         ],
@@ -137,12 +133,12 @@ def install_docs2db_rag(target_path):
 def setup_docs2db_rag_provider(target_path):
     """Set up Docs2DB RAG provider configuration"""
     print(f"\n⚙️  Setting up Docs2DB RAG provider in {target_path}")
-    
+
     # Create provider configuration directory
     config_dir = target_path / "llama-config"
     providers_dir = config_dir / "providers.d" / "inline" / "tool_runtime"
     providers_dir.mkdir(parents=True, exist_ok=True)
-    
+
     # Create Docs2DB RAG provider configuration
     docs2db_rag_config = {
         "config_class": "docs2db_api.rag.llama_stack.Docs2DBRAGConfig",
@@ -150,7 +146,7 @@ def setup_docs2db_rag_provider(target_path):
         "module": "docs2db_api.rag.llama_stack",
         "pip_packages": [
             "psycopg2-binary",
-            "transformers", 
+            "transformers",
             "torch",
             "sentence-transformers",
             "scikit-learn",
@@ -158,14 +154,12 @@ def setup_docs2db_rag_provider(target_path):
         ],
         "provider_data_validator": None,
     }
-    
+
     # Write provider config
     provider_config_file = providers_dir / "docs2db_rag.yaml"
     with open(provider_config_file, "w") as f:
-        yaml.dump(
-            docs2db_rag_config, f, default_flow_style=False, sort_keys=False
-        )
-    
+        yaml.dump(docs2db_rag_config, f, default_flow_style=False, sort_keys=False)
+
     print(f"✅ Created Docs2DB RAG provider config: {provider_config_file}")
     return provider_config_file
 
@@ -207,9 +201,7 @@ def create_distribution_config(target_path):
                 {
                     "provider_id": "ollama",
                     "provider_type": "remote::ollama",
-                    "config": {
-                        "url": "${env.OLLAMA_URL:=http://localhost:11434}"
-                    },
+                    "config": {"url": "${env.OLLAMA_URL:=http://localhost:11434}"},
                 },
                 {
                     "provider_id": "openai",
@@ -309,9 +301,7 @@ def create_distribution_config(target_path):
                     },
                 }
             ],
-            "scoring": [
-                {"provider_id": "basic", "provider_type": "inline::basic"}
-            ],
+            "scoring": [{"provider_id": "basic", "provider_type": "inline::basic"}],
             "tool_runtime": [
                 {
                     "provider_id": "docs2db-rag",
@@ -323,7 +313,7 @@ def create_distribution_config(target_path):
                         "max_tokens_in_context": "${env.DOCS2DB_RAG_MAX_TOKENS:=4096}",
                         "enable_question_refinement": "${env.DOCS2DB_RAG_ENABLE_REFINEMENT:=true}",
                         "enable_hybrid_search": "${env.DOCS2DB_RAG_ENABLE_HYBRID:=true}",
-                    }
+                    },
                 }
             ],
             "batches": [
@@ -361,15 +351,9 @@ def create_distribution_config(target_path):
                 },
             },
         ],
-        "tool_groups": [
-            {
-                "toolgroup_id": "docs2db::rag", 
-                "provider_id": "docs2db-rag"
-            }
-        ],
+        "tool_groups": [{"toolgroup_id": "docs2db::rag", "provider_id": "docs2db-rag"}],
         "server": {"port": "${env.LLAMA_STACK_PORT:=8321}"},
     }
-    
 
     # Write the distribution file
     dist_file = target_path / "docs2db-distribution-local.yaml"
@@ -384,7 +368,7 @@ def create_startup_script(target_path):
     """Create a startup script for the llama-stack server"""
     startup_script = target_path / "start_server.py"
 
-    script_content = f'''#!/usr/bin/env python3
+    script_content = '''#!/usr/bin/env python3
 """
 Start Llama Stack Server
 ========================
@@ -400,19 +384,19 @@ from pathlib import Path
 def main():
     # Get the directory where this script is located
     script_dir = Path(__file__).parent
-    
+
     # Distribution file path
     dist_file = script_dir / "docs2db-distribution-local.yaml"
-    
+
     if not dist_file.exists():
-        print(f"❌ Distribution file not found: {{dist_file}}")
+        print(f"❌ Distribution file not found: {dist_file}")
         sys.exit(1)
-    
+
     print(f"🚀 Starting Llama Stack server...")
-    print(f"📋 Using distribution: {{dist_file}}")
+    print(f"📋 Using distribution: {dist_file}")
     print(f"🌐 Server will be available at: http://localhost:8321")
     print()
-    
+
     # Start the server
     cmd = [
         "uv", "run", "llama", "stack", "run",
@@ -420,7 +404,7 @@ def main():
         "--port", "8321",
         "--image-type", "venv"
     ]
-    
+
     try:
         subprocess.run(cmd, cwd=script_dir)
     except KeyboardInterrupt:
@@ -441,9 +425,7 @@ if __name__ == "__main__":
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Setup fresh Llama Stack environment"
-    )
+    parser = argparse.ArgumentParser(description="Setup fresh Llama Stack environment")
     parser.add_argument("target_directory", help="Directory to create/setup")
 
     args = parser.parse_args()
@@ -473,7 +455,7 @@ def main():
         # Step 7: Create startup script
         startup_script = create_startup_script(target_path)
 
-        print(f"\n🎉 SUCCESS! Fresh Llama Stack + Docs2DB RAG environment ready!")
+        print("\n🎉 SUCCESS! Fresh Llama Stack + Docs2DB RAG environment ready!")
         print(f"📁 Location: {target_path}")
         print(f"📋 Distribution: {dist_file}")
         print(f"🚀 Startup script: {startup_script}")
@@ -486,7 +468,7 @@ def main():
         print()
         print("Next steps:")
         print(f"  1. cd {args.target_directory}")
-        print(f"  2. uv run python start_server.py")
+        print("  2. uv run python start_server.py")
         print("  3. Server will be available at http://localhost:8321")
         print("  4. Use docs2db/demos/llama-stack/client.py to test RAG features")
 

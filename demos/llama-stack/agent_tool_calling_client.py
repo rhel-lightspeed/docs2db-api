@@ -8,7 +8,6 @@ This script shows how agents can automatically use tools to provide informed res
 """
 
 import argparse
-import sys
 
 from llama_stack_client import LlamaStackClient
 
@@ -34,7 +33,7 @@ class AgentToolCallingDemo:
         """Create an agent with tool calling configuration"""
         try:
             from llama_stack_client.types import AgentConfig
-            
+
             agent_config = AgentConfig(
                 model="ollama/qwen2.5:7b-instruct",
                 instructions="""You are a helpful assistant with access to search tools.
@@ -61,9 +60,7 @@ search results.""",
     def create_session(self):
         """Create a session for the agent"""
         try:
-            session = self.client.agents.session.create(
-                agent_id=self.agent_id, session_name="tool-calling-demo"
-            )
+            session = self.client.agents.session.create(agent_id=self.agent_id, session_name="tool-calling-demo")
             self.session_id = session.session_id
             print(f"✅ Created session: {self.session_id}")
             return True
@@ -83,7 +80,7 @@ search results.""",
                     "tool_prompt_format": "function_tag",
                 },
                 messages=[{"role": "user", "content": query}],
-                stream=True
+                stream=True,
             )
             return turn
         except Exception as e:
@@ -96,12 +93,12 @@ search results.""",
             return ""
 
         response_content = ""
-        
+
         # Process the streaming response
         for chunk in turn:
             if hasattr(chunk, "event") and hasattr(chunk.event, "payload"):
                 payload = chunk.event.payload
-                
+
                 # Extract text from the response
                 if hasattr(payload, "delta") and hasattr(payload.delta, "text"):
                     text = payload.delta.text
@@ -133,23 +130,23 @@ search results.""",
         print()
 
         # Send query
-        print(f"📤 Sending query to agent...")
+        print("📤 Sending query to agent...")
         turn = self.send_query(query)
-        
+
         if not turn:
             return False
 
         # Display response
         print("🤖 Agent Response:")
         print("-" * 50)
-        
+
         response = self.display_response(turn)
-        
+
         if response:
             print(response)
         else:
             print("No response received")
-        
+
         print("-" * 50)
         print()
         print("✅ Demo completed!")
@@ -159,17 +156,13 @@ search results.""",
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Agent Tool Calling Demo - Shows Llama Stack agent capabilities"
-    )
+    parser = argparse.ArgumentParser(description="Agent Tool Calling Demo - Shows Llama Stack agent capabilities")
     parser.add_argument(
         "--query",
         default="How does solar energy compare to other renewable energy sources in terms of efficiency and cost?",
         help="Query to ask the agent",
     )
-    parser.add_argument(
-        "--server", default="http://localhost:8321", help="Llama Stack server URL"
-    )
+    parser.add_argument("--server", default="http://localhost:8321", help="Llama Stack server URL")
 
     args = parser.parse_args()
 
