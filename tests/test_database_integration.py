@@ -10,10 +10,7 @@ from docs2db_api.database import DatabaseManager
 class TestDatabaseConnection:
     def test_sync_connection(self, skip_if_no_pg, test_db_config):
         cfg = test_db_config
-        conn_string = (
-            f"postgresql://{cfg['user']}:{cfg['password']}"
-            f"@{cfg['host']}:{cfg['port']}/{cfg['database']}"
-        )
+        conn_string = f"postgresql://{cfg['user']}:{cfg['password']}@{cfg['host']}:{cfg['port']}/{cfg['database']}"
         with psycopg.Connection.connect(conn_string, connect_timeout=5) as conn:
             result = conn.execute("SELECT 1").fetchone()
             assert result is not None
@@ -26,9 +23,7 @@ class TestDatabaseConnection:
         assert row[0] == 1
 
     async def test_pgvector_extension_is_available(self, pg_connection):
-        result = await pg_connection.execute(
-            "SELECT COUNT(*) FROM pg_available_extensions WHERE name = 'vector'"
-        )
+        result = await pg_connection.execute("SELECT COUNT(*) FROM pg_available_extensions WHERE name = 'vector'")
         row = await result.fetchone()
         assert row is not None
         assert row[0] >= 1
