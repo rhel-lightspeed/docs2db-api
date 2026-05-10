@@ -728,9 +728,10 @@ async def check_database_status(
                     f"  Models         : {metadata['embedding_models_count']}\n"
                     f"  Last modified  : {metadata['last_modified_at'].strftime('%Y-%m-%d %H:%M') if metadata['last_modified_at'] else 'Unknown'}"  # noqa: E501
                 )
-        except Exception:  # noqa: S110 -- schema_metadata table may not exist yet; absence is expected
-            # Schema metadata table doesn't exist yet
+        except psycopg.errors.UndefinedTable:
             pass
+        except Exception as e:
+            logger.warning("Unexpected error probing schema_metadata table", error=str(e))
 
     # Display recent schema changes (last 5)
     async with await db_manager.get_direct_connection() as conn:
@@ -766,9 +767,10 @@ async def check_database_status(
                 logger.info("\nRecent Changes (last 5):")
                 for change_data in changes:
                     logger.info(db_manager.format_schema_change_display(change_data))
-        except Exception:  # noqa: S110 -- schema_changes table may not exist yet; absence is expected
-            # Schema changes table doesn't exist yet
+        except psycopg.errors.UndefinedTable:
             pass
+        except Exception as e:
+            logger.warning("Unexpected error probing schema_changes table", error=str(e))
 
     if stats["documents"] > 0:
         # Get recent activity

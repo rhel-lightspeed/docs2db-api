@@ -381,14 +381,20 @@ class UniversalRAGEngine:
         self.embedding_provider = self._get_embedding_provider()
         self._started = True
 
-        # Assert all required config values are set after applying hierarchy
-        assert self.config.model_name is not None, "model_name must be set after start()"
-        assert self.config.similarity_threshold is not None, "similarity_threshold must be set"
-        assert self.config.max_chunks is not None, "max_chunks must be set"
-        assert self.config.max_tokens_in_context is not None, "max_tokens_in_context must be set"
-        assert self.config.enable_question_refinement is not None, "enable_question_refinement must be set"
-        assert self.config.enable_reranking is not None, "enable_reranking must be set"
-        assert self.config.refinement_questions_count is not None, "refinement_questions_count must be set"
+        if self.config.model_name is None:
+            raise RuntimeError("model_name must be set after start()")
+        if self.config.similarity_threshold is None:
+            raise RuntimeError("similarity_threshold must be set")
+        if self.config.max_chunks is None:
+            raise RuntimeError("max_chunks must be set")
+        if self.config.max_tokens_in_context is None:
+            raise RuntimeError("max_tokens_in_context must be set")
+        if self.config.enable_question_refinement is None:
+            raise RuntimeError("enable_question_refinement must be set")
+        if self.config.enable_reranking is None:
+            raise RuntimeError("enable_reranking must be set")
+        if self.config.refinement_questions_count is None:
+            raise RuntimeError("refinement_questions_count must be set")
 
         # Warm up cross-encoder reranker if enabled
         if self.config.enable_reranking:
@@ -408,7 +414,8 @@ class UniversalRAGEngine:
         db_settings: dict[str, bool | int | float | None] = {}
         db_refinement_prompt: str | None = None
 
-        assert self.db_manager is not None, "db_manager must be initialized"
+        if self.db_manager is None:
+            raise RuntimeError("db_manager must be initialized")
 
         try:
             async with await self.db_manager.get_direct_connection() as conn:
@@ -515,12 +522,14 @@ class UniversalRAGEngine:
 
     def _get_embedding_provider(self):
         """Get the appropriate embedding provider for the configured model"""
-        assert self.model_config is not None, "model_config must be set before calling this method"
+        if self.model_config is None:
+            raise RuntimeError("model_config must be set before calling this method")
 
         provider_cls = self.model_config["cls"]
 
         if provider_cls == GraniteEmbeddingProvider:
-            assert self.config.model_name is not None  # Set by start()
+            if self.config.model_name is None:
+                raise RuntimeError("model_name must be set before calling this method")
             return GraniteEmbeddingProvider(
                 model_name=self.config.model_name,
                 config=self.model_config,
@@ -550,11 +559,14 @@ class UniversalRAGEngine:
         if not self._started:
             raise RuntimeError("RAG engine not initialized. Call await engine.start() first.")
 
-        # Type checker assertions - these are guaranteed to be set after start()
-        assert self.db_manager is not None
-        assert self.embedding_provider is not None
-        assert self.model_config is not None
-        assert self.config.model_name is not None
+        if self.db_manager is None:
+            raise RuntimeError("db_manager is not initialized")
+        if self.embedding_provider is None:
+            raise RuntimeError("embedding_provider is not initialized")
+        if self.model_config is None:
+            raise RuntimeError("model_config is not initialized")
+        if self.config.model_name is None:
+            raise RuntimeError("model_name is not initialized")
 
         logger.info(f"Processing RAG query: {query[:100]}...")
 
@@ -813,7 +825,8 @@ class UniversalRAGEngine:
 
     async def _generate_query_embeddings(self, query_text: str) -> list[float]:
         """Generate embeddings for the query text"""
-        assert self.embedding_provider is not None, "Engine must be started first"
+        if self.embedding_provider is None:
+            raise RuntimeError("Engine must be started first")
 
         try:
             # Handle both single queries and refined questions
@@ -850,12 +863,14 @@ class UniversalRAGEngine:
         self, query_embedding: list[float], config: RAGConfig, query_text: str
     ) -> list[dict[str, Any]]:
         """Retrieve similar documents from the database using hybrid search"""
-        assert self.db_manager is not None, "Engine must be started first"
-        assert config.model_name is not None, "Model name must be set"
+        if self.db_manager is None:
+            raise RuntimeError("Engine must be started first")
+        if config.model_name is None:
+            raise ValueError("Model name must be set")
 
         try:
-            # Always use hybrid search (opinionated choice)
-            assert config.max_chunks is not None and config.similarity_threshold is not None  # Set by start()
+            if config.max_chunks is None or config.similarity_threshold is None:
+                raise RuntimeError("max_chunks and similarity_threshold must be set")
             hybrid_chunks = await self.db_manager.search_hybrid(
                 query_embedding=query_embedding,
                 query_text=query_text,
@@ -952,7 +967,8 @@ class UniversalRAGEngine:
         total_tokens = 0
         final_docs = []
 
-        assert config.max_tokens_in_context is not None  # Set by start()
+        if config.max_tokens_in_context is None:
+            raise RuntimeError("max_tokens_in_context must be set")
         for doc in filtered:
             # Rough token estimation (1 token ≈ 4 characters)
             doc_tokens = len(doc["text"]) // 4
@@ -1017,7 +1033,10 @@ async def search_documents(query: str, model_name: str | None = None, **options)
 
     engine = UniversalRAGEngine(config)
     await engine.start()
-    return await engine.search_documents(query, **options)
+    try:
+        return await engine.search_documents(query, **options)
+    finally:
+        await engine.close()
 
 
 async def log_search(query, model_name, max_chunks, similarity_threshold):
