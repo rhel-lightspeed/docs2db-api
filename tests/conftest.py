@@ -82,12 +82,8 @@ def mock_embedding_provider():
 def mock_llm_client():
     """Mock LLM client for query refinement testing."""
     client = MagicMock()
-    client.refine_query = AsyncMock(
-        return_value=[
-            "What is X?",
-            "How does X work?",
-            "Where is X used?",
-        ]
+    client.acomplete = AsyncMock(
+        return_value="1. What is X?\n2. How does X work?\n3. Where is X used?"
     )
     return client
 
