@@ -16,10 +16,8 @@ Architecture:
 - Framework-agnostic core suitable for REST API, Llama Stack, etc.
 """
 
-import asyncio
-import json
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple, TypeVar, Union, cast, overload
+from typing import Any, cast, overload
 
 import httpx
 import structlog
@@ -40,7 +38,7 @@ DEFAULT_ENABLE_QUESTION_REFINEMENT: bool = settings.rag.enable_question_refineme
 DEFAULT_ENABLE_RERANKING: bool = settings.rag.enable_reranking
 DEFAULT_REFINEMENT_QUESTIONS_COUNT: int = settings.rag.refinement_questions_count
 
-DEFAULT_RAG_SETTINGS: Dict[str, Union[float, int, bool]] = {
+DEFAULT_RAG_SETTINGS: dict[str, float | int | bool] = {
     "similarity_threshold": DEFAULT_SIMILARITY_THRESHOLD,
     "max_chunks": DEFAULT_MAX_CHUNKS,
     "max_tokens_in_context": DEFAULT_MAX_TOKENS_IN_CONTEXT,
@@ -53,69 +51,68 @@ DEFAULT_RAG_SETTINGS: Dict[str, Union[float, int, bool]] = {
 # Type-safe setting getter with overloads
 @overload
 def _get_setting(
-    config_value: Optional[bool],
+    config_value: bool | None,
     env_var: str,
-    db_value: Optional[bool],
+    db_value: bool | None,
     default_value: bool,
     setting_type: type[bool],
-    logger: Any
+    logger: Any,
 ) -> bool: ...
 
+
 @overload
 def _get_setting(
-    config_value: Optional[int],
+    config_value: int | None,
     env_var: str,
-    db_value: Optional[int],
+    db_value: int | None,
     default_value: int,
     setting_type: type[int],
-    logger: Any
+    logger: Any,
 ) -> int: ...
 
+
 @overload
 def _get_setting(
-    config_value: Optional[float],
+    config_value: float | None,
     env_var: str,
-    db_value: Optional[float],
+    db_value: float | None,
     default_value: float,
     setting_type: type[float],
-    logger: Any
+    logger: Any,
 ) -> float: ...
+
 
 @overload
 def _get_setting(
-    config_value: Optional[str],
+    config_value: str | None,
     env_var: str,
-    db_value: Optional[str],
+    db_value: str | None,
     default_value: str,
     setting_type: type[str],
-    logger: Any
+    logger: Any,
 ) -> str: ...
 
+
 def _get_setting(
-    config_value: Any,
-    env_var: str,
-    db_value: Any,
-    default_value: Any,
-    setting_type: type,
-    logger: Any
+    config_value: Any, env_var: str, db_value: Any, default_value: Any, setting_type: type, logger: Any
 ) -> Any:
     """Get setting value following hierarchy: CLI/kwargs → env → database → defaults."""
     import os
-    
+
     # 1. CLI/kwargs (config value)
     if config_value is not None:
         logger.debug(f"{env_var}: using config value = {config_value}")
         return config_value
-    
+
     # 2. Environment variable
     env_value = os.getenv(env_var)
     if env_value is not None:
         try:
-            if setting_type == bool:
+            if setting_type is bool:
                 result = env_value.lower() in ("true", "1", "yes")
-            elif setting_type == int:
+            elif setting_type is int:
                 result = int(env_value)
-            elif setting_type == float:
+            elif setting_type is float:
                 result = float(env_value)
             else:
                 result = env_value
@@ -123,12 +120,12 @@ def _get_setting(
             return result
         except (ValueError, AttributeError):
             logger.warning(f"Invalid environment variable {env_var}={env_value}, ignoring")
-    
+
     # 3. Database value
     if db_value is not None:
         logger.debug(f"{env_var}: using database value = {db_value}")
         return db_value
-    
+
     # 4. Code default
     logger.debug(f"{env_var}: using default value = {default_value}")
     return default_value
@@ -136,7 +133,7 @@ def _get_setting(
 
 class LLMClient:
     """LLM client using OpenAI-compatible API for query refinement.
-    
+
     Configuration via Pydantic settings (environment variables with DOCS2DB_LLM_ prefix):
     - DOCS2DB_LLM_BASE_URL: Base URL for OpenAI-compatible API (default: http://localhost:11434)
     - DOCS2DB_LLM_MODEL: Model name to use (default: qwen2.5:7b-instruct)
@@ -144,13 +141,13 @@ class LLMClient:
     - DOCS2DB_LLM_TEMPERATURE: LLM temperature for generation (default: 0.7)
     - DOCS2DB_LLM_MAX_TOKENS: Maximum tokens for LLM response (default: 500)
     """
-    
-    def __init__(self, base_url: Optional[str] = None, model: Optional[str] = None):
+
+    def __init__(self, base_url: str | None = None, model: str | None = None):
         # Allow constructor params to override settings (highest priority)
-        self.base_url = (base_url or settings.llm.base_url).rstrip('/')
+        self.base_url = (base_url or settings.llm.base_url).rstrip("/")
         self.model = model or settings.llm.model
         self.client = httpx.AsyncClient(timeout=settings.llm.timeout)
-        
+
     async def acomplete(self, prompt: str) -> str:
         """Complete a prompt using OpenAI-compatible API."""
         try:
@@ -162,16 +159,16 @@ class LLMClient:
                     "stream": False,
                     "temperature": settings.llm.temperature,
                     "max_tokens": settings.llm.max_tokens,
-                }
+                },
             )
             response.raise_for_status()
             result = response.json()
             return result["choices"][0]["message"]["content"].strip()
-            
+
         except Exception as e:
             logger.warning(f"LLM call failed: {e}")
             return ""
-    
+
     async def close(self):
         """Close the HTTP client."""
         await self.client.aclose()
@@ -229,18 +226,18 @@ User query: {question}"""
 @dataclass
 class RAGConfig:
     """Configuration for RAG engine
-    
+
     All settings are optional (None = fall through to next level in hierarchy):
     CLI/kwargs → environment → .env → database → code defaults
     """
 
-    model_name: Optional[str] = None  # If None, will auto-detect from database
-    similarity_threshold: Optional[float] = None
-    max_chunks: Optional[int] = None
-    max_tokens_in_context: Optional[int] = None
-    enable_question_refinement: Optional[bool] = None
-    enable_reranking: Optional[bool] = None
-    refinement_questions_count: Optional[int] = None
+    model_name: str | None = None  # If None, will auto-detect from database
+    similarity_threshold: float | None = None
+    max_chunks: int | None = None
+    max_tokens_in_context: int | None = None
+    enable_question_refinement: bool | None = None
+    enable_reranking: bool | None = None
+    refinement_questions_count: int | None = None
 
 
 @dataclass
@@ -248,40 +245,40 @@ class RAGResult:
     """Result from RAG query"""
 
     query: str
-    documents: List[Dict[str, Any]]
-    response: Optional[str] = None
-    refined_questions: Optional[str] = None
-    metadata: Optional[Dict[str, Any]] = None
+    documents: list[dict[str, Any]]
+    response: str | None = None
+    refined_questions: str | None = None
+    metadata: dict[str, Any] | None = None
 
 
 class UniversalRAGEngine:
     """
     This engine is framework-agnostic and can be used by multiple
     interface adapters (REST API, Llama Stack, OpenAI tools, etc.)
-    
+
     Uses two-phase initialization pattern:
     - Constructor is lightweight, doesn't touch resources
     - start() method initializes database connection and detects model
-    
+
     Usage:
         engine = UniversalRAGEngine(config=config, db_config=db_config)
         await engine.start()
         result = await engine.search_documents(query)
-        
-        # Note: No cleanup needed for typical usage (database connections are 
-        # per-request). Only call close() if you provided an llm_client that 
+
+        # Note: No cleanup needed for typical usage (database connections are
+        # per-request). Only call close() if you provided an llm_client that
         # needs cleanup.
     """
 
     def __init__(
         self,
-        config: Optional[RAGConfig] = None,
+        config: RAGConfig | None = None,
         llm_client=None,
-        db_config: Optional[Dict[str, str]] = None,
-        refinement_prompt: Optional[str] = None,
+        db_config: dict[str, str] | None = None,
+        refinement_prompt: str | None = None,
     ):
         """Initialize RAG engine (lightweight, no I/O).
-        
+
         Args:
             config: RAG configuration. If model_name is None, will auto-detect from database.
             llm_client: Optional LLM client for question refinement.
@@ -292,19 +289,19 @@ class UniversalRAGEngine:
         self.llm_client = llm_client
         self._db_config_dict = db_config
         self.refinement_prompt = refinement_prompt
-        
+
         # These will be initialized in start()
-        self.db_manager: Optional[DatabaseManager] = None
+        self.db_manager: DatabaseManager | None = None
         self.embedding_provider = None
-        self.model_config: Optional[Dict[str, Any]] = None
+        self.model_config: dict[str, Any] | None = None
         self._started = False
 
     async def start(self) -> None:
         """Initialize database connection and auto-detect model if needed.
-        
+
         This method performs I/O and can fail if database is unavailable.
         Must be called before using the engine.
-        
+
         Raises:
             ValueError: If no models found in database or model_name is invalid
             DatabaseError: If database connection fails
@@ -337,36 +334,28 @@ class UniversalRAGEngine:
         # Auto-detect model from database if not specified
         if self.config.model_name is None:
             async with await self.db_manager.get_direct_connection() as conn:
-                result = await conn.execute(
-                    "SELECT name, dimensions, provider FROM models ORDER BY created_at DESC"
-                )
+                result = await conn.execute("SELECT name, dimensions, provider FROM models ORDER BY created_at DESC")
                 models = await result.fetchall()
-                
+
                 if not models:
                     raise ValueError(
-                        "No embedding models found in database. "
-                        "Please load documents first using docs2db CLI."
+                        "No embedding models found in database. Please load documents first using docs2db CLI."
                     )
-                
+
                 if len(models) > 1:
                     model_names = [row[0] for row in models]
-                    logger.warning(
-                        f"Multiple embedding models found: {model_names}. "
-                        f"Using most recent: {models[0][0]}"
-                    )
-                
+                    logger.warning(f"Multiple embedding models found: {model_names}. Using most recent: {models[0][0]}")
+
                 # Use the most recently created model
                 self.config.model_name = models[0][0]
                 logger.info(
-                    f"Model detected: {self.config.model_name} "
-                    f"(dimensions: {models[0][1]}, provider: {models[0][2]})"
+                    f"Model detected: {self.config.model_name} (dimensions: {models[0][1]}, provider: {models[0][2]})"
                 )
 
         # Validate model configuration
         if self.config.model_name not in EMBEDDING_CONFIGS:
             raise ValueError(
-                f"Unknown model: {self.config.model_name}. "
-                f"Available models: {list(EMBEDDING_CONFIGS.keys())}"
+                f"Unknown model: {self.config.model_name}. Available models: {list(EMBEDDING_CONFIGS.keys())}"
             )
 
         self.model_config = EMBEDDING_CONFIGS[self.config.model_name]
@@ -383,21 +372,15 @@ class UniversalRAGEngine:
             )
             try:
                 self.llm_client = LLMClient()
-                logger.info(
-                    f"LLMClient created: base_url={self.llm_client.base_url}, "
-                    f"model={self.llm_client.model}"
-                )
+                logger.info(f"LLMClient created: base_url={self.llm_client.base_url}, model={self.llm_client.model}")
             except Exception as e:
-                logger.warning(
-                    f"Failed to create LLMClient: {e}. "
-                    "Question refinement will be skipped."
-                )
+                logger.warning(f"Failed to create LLMClient: {e}. Question refinement will be skipped.")
                 self.llm_client = None
 
         # Initialize embedding provider
         self.embedding_provider = self._get_embedding_provider()
         self._started = True
-        
+
         # Assert all required config values are set after applying hierarchy
         assert self.config.model_name is not None, "model_name must be set after start()"
         assert self.config.similarity_threshold is not None, "similarity_threshold must be set"
@@ -406,28 +389,27 @@ class UniversalRAGEngine:
         assert self.config.enable_question_refinement is not None, "enable_question_refinement must be set"
         assert self.config.enable_reranking is not None, "enable_reranking must be set"
         assert self.config.refinement_questions_count is not None, "refinement_questions_count must be set"
-        
+
         # Warm up cross-encoder reranker if enabled
         if self.config.enable_reranking:
             await self._warmup_reranker()
 
     async def _apply_settings_hierarchy(self) -> None:
         """Apply settings hierarchy: CLI/kwargs → env → database → defaults.
-        
+
         For each setting:
         1. If explicitly set in config (not None), keep it (CLI/kwargs priority)
         2. Otherwise, check environment variable
         3. Otherwise, check database
         4. Otherwise, use code default
         """
-        import os
-        
+
         # Load database settings
-        db_settings: Dict[str, Union[bool, int, float, None]] = {}
-        db_refinement_prompt: Optional[str] = None
-        
+        db_settings: dict[str, bool | int | float | None] = {}
+        db_refinement_prompt: str | None = None
+
         assert self.db_manager is not None, "db_manager must be initialized"
-        
+
         try:
             async with await self.db_manager.get_direct_connection() as conn:
                 result = await conn.execute(
@@ -439,7 +421,7 @@ class UniversalRAGEngine:
                     """
                 )
                 row = await result.fetchone()
-                
+
                 if row:
                     db_refinement_prompt = row[0]
                     db_settings = {
@@ -455,65 +437,65 @@ class UniversalRAGEngine:
                     logger.info("No RAG settings found in database, using defaults")
         except Exception as e:
             logger.warning(f"Could not load RAG settings from database: {e}. Using defaults.")
-        
+
         # Apply hierarchy for each setting
         # Priority: config (CLI/kwargs) → env → database → defaults
-        
+
         # Apply to each config field
         self.config.similarity_threshold = _get_setting(
             self.config.similarity_threshold,
             "DOCS2DB_RAG_SIMILARITY_THRESHOLD",
-            cast(Optional[float], db_settings.get("similarity_threshold")),
+            cast(float | None, db_settings.get("similarity_threshold")),
             DEFAULT_SIMILARITY_THRESHOLD,
             float,
-            logger
+            logger,
         )
-        
+
         self.config.max_chunks = _get_setting(
             self.config.max_chunks,
             "DOCS2DB_RAG_MAX_CHUNKS",
-            cast(Optional[int], db_settings.get("max_chunks")),
+            cast(int | None, db_settings.get("max_chunks")),
             DEFAULT_MAX_CHUNKS,
             int,
-            logger
+            logger,
         )
-        
+
         self.config.max_tokens_in_context = _get_setting(
             self.config.max_tokens_in_context,
             "DOCS2DB_RAG_MAX_TOKENS_IN_CONTEXT",
-            cast(Optional[int], db_settings.get("max_tokens_in_context")),
+            cast(int | None, db_settings.get("max_tokens_in_context")),
             DEFAULT_MAX_TOKENS_IN_CONTEXT,
             int,
-            logger
+            logger,
         )
-        
+
         self.config.enable_question_refinement = _get_setting(
             self.config.enable_question_refinement,
             "DOCS2DB_RAG_ENABLE_QUESTION_REFINEMENT",
-            cast(Optional[bool], db_settings.get("enable_refinement")),
+            cast(bool | None, db_settings.get("enable_refinement")),
             DEFAULT_ENABLE_QUESTION_REFINEMENT,
             bool,
-            logger
+            logger,
         )
-        
+
         self.config.enable_reranking = _get_setting(
             self.config.enable_reranking,
             "DOCS2DB_RAG_ENABLE_RERANKING",
-            cast(Optional[bool], db_settings.get("enable_reranking")),
+            cast(bool | None, db_settings.get("enable_reranking")),
             DEFAULT_ENABLE_RERANKING,
             bool,
-            logger
+            logger,
         )
-        
+
         self.config.refinement_questions_count = _get_setting(
             self.config.refinement_questions_count,
             "DOCS2DB_RAG_REFINEMENT_QUESTIONS_COUNT",
-            cast(Optional[int], db_settings.get("refinement_questions_count")),
+            cast(int | None, db_settings.get("refinement_questions_count")),
             DEFAULT_REFINEMENT_QUESTIONS_COUNT,
             int,
-            logger
+            logger,
         )
-        
+
         # Apply hierarchy for refinement prompt
         # Priority: constructor arg → settings → database → None (use default template)
         if self.refinement_prompt is None:
@@ -524,7 +506,7 @@ class UniversalRAGEngine:
                 self.refinement_prompt = db_refinement_prompt
                 logger.debug("DOCS2DB_RAG_REFINEMENT_PROMPT: using database value")
             # Otherwise it stays None and will use default REFINEMENT_PROMPT_TEMPLATE
-        
+
         logger.info(
             f"RAG settings: threshold={self.config.similarity_threshold}, "
             f"max_chunks={self.config.max_chunks}, refinement={self.config.enable_question_refinement}, "
@@ -534,7 +516,7 @@ class UniversalRAGEngine:
     def _get_embedding_provider(self):
         """Get the appropriate embedding provider for the configured model"""
         assert self.model_config is not None, "model_config must be set before calling this method"
-        
+
         provider_cls = self.model_config["cls"]
 
         if provider_cls == GraniteEmbeddingProvider:
@@ -561,39 +543,31 @@ class UniversalRAGEngine:
 
         Returns:
             RAGResult with documents and metadata
-            
+
         Raises:
             RuntimeError: If start() has not been called yet
         """
         if not self._started:
-            raise RuntimeError(
-                "RAG engine not initialized. Call await engine.start() first."
-            )
-        
+            raise RuntimeError("RAG engine not initialized. Call await engine.start() first.")
+
         # Type checker assertions - these are guaranteed to be set after start()
         assert self.db_manager is not None
         assert self.embedding_provider is not None
         assert self.model_config is not None
         assert self.config.model_name is not None
-        
+
         logger.info(f"Processing RAG query: {query[:100]}...")
 
         # Merge options with config
         search_config = RAGConfig(
             model_name=options.get("model_name", self.config.model_name),
-            similarity_threshold=options.get(
-                "similarity_threshold", self.config.similarity_threshold
-            ),
+            similarity_threshold=options.get("similarity_threshold", self.config.similarity_threshold),
             max_chunks=options.get("max_chunks", self.config.max_chunks),
-            max_tokens_in_context=options.get(
-                "max_tokens_in_context", self.config.max_tokens_in_context
-            ),
+            max_tokens_in_context=options.get("max_tokens_in_context", self.config.max_tokens_in_context),
             enable_question_refinement=options.get(
                 "enable_question_refinement", self.config.enable_question_refinement
             ),
-            enable_reranking=options.get(
-                "enable_reranking", self.config.enable_reranking
-            ),
+            enable_reranking=options.get("enable_reranking", self.config.enable_reranking),
             refinement_questions_count=options.get(
                 "refinement_questions_count", self.config.refinement_questions_count
             ),
@@ -612,9 +586,10 @@ class UniversalRAGEngine:
 
         try:
             import time
+
             timings = {}
             start_total = time.time()
-            
+
             # Step 1: Question refinement (if enabled)
             refined_questions = None
             if search_config.enable_question_refinement:
@@ -624,7 +599,9 @@ class UniversalRAGEngine:
                         "Skipping refinement. To enable refinement, pass an llm_client to UniversalRAGEngine() "
                         "or set DOCS2DB_LLM_BASE_URL environment variable."
                     )
-                    logger.debug(f"Config: enable_question_refinement={search_config.enable_question_refinement}, llm_client={self.llm_client}")
+                    logger.debug(
+                        f"Config: enable_question_refinement={search_config.enable_question_refinement}, llm_client={self.llm_client}"  # noqa: E501
+                    )
                     timings["refinement"] = 0.0
                     search_query = query
                 else:
@@ -633,7 +610,7 @@ class UniversalRAGEngine:
                     refined_questions = await self._refine_questions(query, search_config)
                     timings["refinement"] = time.time() - start
                     logger.debug(f"Refinement result: {refined_questions[:200] if refined_questions else 'None'}...")
-                    
+
                     # Handle "EMPTY" response - skip RAG retrieval for non-technical questions
                     if refined_questions == "EMPTY":
                         total_time = time.time() - start_total
@@ -653,7 +630,7 @@ class UniversalRAGEngine:
                                 "features_used": ["question_refinement"],
                             },
                         )
-                    
+
                     # Use refined questions if available, otherwise use original query
                     search_query = refined_questions if refined_questions else query
             else:
@@ -667,9 +644,7 @@ class UniversalRAGEngine:
 
             # Step 3: Retrieve similar documents using hybrid search
             start = time.time()
-            documents = await self._retrieve_similar_documents(
-                query_embeddings, search_config, query
-            )
+            documents = await self._retrieve_similar_documents(query_embeddings, search_config, query)
             timings["hybrid_search"] = time.time() - start
             timings["candidates_retrieved"] = len(documents)
 
@@ -693,19 +668,17 @@ class UniversalRAGEngine:
                 "similarity_threshold": search_config.similarity_threshold,
                 "documents_found": len(filtered_documents),
                 "question_refinement_enabled": search_config.enable_question_refinement,
-                "features_used": self._get_features_used(
-                    search_config, refined_questions
-                ),
+                "features_used": self._get_features_used(search_config, refined_questions),
             }
 
             # Calculate total time and log comprehensive timing breakdown
             timings["total"] = time.time() - start_total
-            
+
             logger.info(
                 f"RAG search completed - {len(filtered_documents)} documents found:\n"
                 f"  Refinement: {timings['refinement']:.3f}s\n"
                 f"  Embedding: {timings['embedding']:.3f}s\n"
-                f"  Hybrid search: {timings['hybrid_search']:.3f}s (retrieved {timings['candidates_retrieved']} candidates)\n"
+                f"  Hybrid search: {timings['hybrid_search']:.3f}s (retrieved {timings['candidates_retrieved']} candidates)\n"  # noqa: E501
                 f"  Reranking: {timings['reranking']:.3f}s\n"
                 f"  Post-process: {timings['post_process']:.3f}s (filtered to {len(filtered_documents)} docs)\n"
                 f"  Total: {timings['total']:.3f}s"
@@ -725,50 +698,50 @@ class UniversalRAGEngine:
     def _clean_question_formatting(self, question: str) -> str:
         """
         Clean formatting issues from a question.
-        
+
         Removes numbered lists, quotes, markdown formatting.
         """
         import re
-        
+
         cleaned = question.strip()
-        
+
         # Remove numbered list prefixes (e.g., "1. ", "2) ", "3. ")
         cleaned = re.sub(r"^\s*\d+[\.)]\s+", "", cleaned)
-        
+
         # Remove quotes wrapping the entire question
         if re.match(r'^["\'`].*["\'`]$', cleaned):
             cleaned = cleaned[1:-1].strip()
-        
+
         # Remove markdown bullet points at the start
         if cleaned.startswith("- ") or cleaned.startswith("* "):
             cleaned = cleaned[2:].strip()
-        
+
         # Remove markdown headers at the start
         cleaned = re.sub(r"^#+\s+", "", cleaned)
-        
+
         # Remove bold/italic markdown (but keep the text)
         cleaned = re.sub(r"\*\*([^*]+)\*\*", r"\1", cleaned)  # **bold**
         cleaned = re.sub(r"__([^_]+)__", r"\1", cleaned)  # __bold__
         cleaned = re.sub(r"\*([^*]+)\*", r"\1", cleaned)  # *italic*
         cleaned = re.sub(r"_([^_]+)_", r"\1", cleaned)  # _italic_
-        
+
         return cleaned
-    
+
     def _validate_and_clean_refined_questions(self, refined_questions: str) -> str:
         """
         Parse, validate, and clean refined questions.
-        
+
         Cleans formatting issues like numbered lists, markdown, quotes.
         """
         import re
-        
+
         # Parse individual questions (split by newlines, filter empty lines)
         question_lines = [q.strip() for q in refined_questions.split("\n") if q.strip()]
-        
+
         # Clean each question
         cleaned_questions = []
         format_violations = []
-        
+
         for i, question in enumerate(question_lines, 1):
             # Check for violations BEFORE cleaning
             violations = []
@@ -776,43 +749,45 @@ class UniversalRAGEngine:
                 violations.append("numbered list")
             if re.match(r'^["\'`].*["\'`]$', question):
                 violations.append("wrapped in quotes")
-            if any([
-                question.strip().startswith("- "),
-                question.strip().startswith("* "),
-                "**" in question,
-                "__" in question,
-            ]):
+            if any(
+                [
+                    question.strip().startswith("- "),
+                    question.strip().startswith("* "),
+                    "**" in question,
+                    "__" in question,
+                ]
+            ):
                 violations.append("markdown formatting")
-            
+
             # Clean the question
             cleaned = self._clean_question_formatting(question)
             cleaned_questions.append(cleaned)
-            
+
             # Track violations for reporting
             if violations:
                 format_violations.append((i, ", ".join(violations)))
-        
+
         # Log all format violations that were auto-fixed
         if format_violations:
             logger.info("Auto-cleaned formatting issues:")
             for q_num, violation_desc in format_violations:
                 logger.info(f"   Q{q_num}: Fixed {violation_desc}")
-        
+
         return "\n".join(cleaned_questions)
 
-    async def _refine_questions(self, query: str, config: RAGConfig) -> Optional[str]:
+    async def _refine_questions(self, query: str, config: RAGConfig) -> str | None:
         """Generate refined, targeted questions for better retrieval (rlsapi pattern)"""
-        
+
         # Use custom prompt if provided, otherwise use default template
         if not self.refinement_prompt:
             logger.warning("No refinement prompt provided, using default template")
         prompt_template = self.refinement_prompt if self.refinement_prompt else REFINEMENT_PROMPT_TEMPLATE
         prompt = prompt_template.format(question=query)
-        
+
         try:
             # Use LLM to refine questions
             refined = await self._call_llm(prompt)
-            
+
             # Handle "EMPTY" response (query not technical/valid)
             if refined.strip() == "EMPTY":
                 logger.info(
@@ -820,7 +795,7 @@ class UniversalRAGEngine:
                     "Skipping RAG retrieval."
                 )
                 return "EMPTY"  # Return explicit marker instead of None
-            
+
             # Clean up the response
             refined = refined.strip()
             if refined:
@@ -831,20 +806,18 @@ class UniversalRAGEngine:
             else:
                 logger.warning("Query refinement gave no response")
                 return None
-                
+
         except Exception as e:
             logger.warning(f"Question refinement failed: {e}")
             return None
 
-    async def _generate_query_embeddings(self, query_text: str) -> List[float]:
+    async def _generate_query_embeddings(self, query_text: str) -> list[float]:
         """Generate embeddings for the query text"""
         assert self.embedding_provider is not None, "Engine must be started first"
-        
+
         try:
             # Handle both single queries and refined questions
-            if isinstance(query_text, str) and (
-                "1." in query_text or "2." in query_text
-            ):
+            if isinstance(query_text, str) and ("1." in query_text or "2." in query_text):
                 # Extract individual questions from numbered list
                 lines = query_text.strip().split("\n")
                 questions = []
@@ -858,9 +831,7 @@ class UniversalRAGEngine:
 
                 if questions:
                     # Generate embeddings for all questions and average them
-                    all_embeddings = self.embedding_provider.generate_embeddings(
-                        questions
-                    )
+                    all_embeddings = self.embedding_provider.generate_embeddings(questions)
                     # Average the embeddings
                     import numpy as np
 
@@ -876,12 +847,12 @@ class UniversalRAGEngine:
             raise
 
     async def _retrieve_similar_documents(
-        self, query_embedding: List[float], config: RAGConfig, query_text: str
-    ) -> List[Dict[str, Any]]:
+        self, query_embedding: list[float], config: RAGConfig, query_text: str
+    ) -> list[dict[str, Any]]:
         """Retrieve similar documents from the database using hybrid search"""
         assert self.db_manager is not None, "Engine must be started first"
         assert config.model_name is not None, "Model name must be set"
-        
+
         try:
             # Always use hybrid search (opinionated choice)
             assert config.max_chunks is not None and config.similarity_threshold is not None  # Set by start()
@@ -898,17 +869,19 @@ class UniversalRAGEngine:
             for chunk in hybrid_chunks:
                 # Use RRF score as the primary score
                 score = chunk.get("rrf_score", 0.0)
-                
-                documents.append({
-                    "text": chunk["text"],
-                    "similarity_score": score,
-                    "document_path": chunk.get("document_path", ""),
-                    "chunk_index": chunk.get("chunk_index", 0),
-                    "metadata": chunk.get("metadata", {}),
-                    "vector_similarity": chunk.get("similarity"),
-                    "bm25_rank": chunk.get("bm25_rank"),
-                    "rrf_score": score,
-                })
+
+                documents.append(
+                    {
+                        "text": chunk["text"],
+                        "similarity_score": score,
+                        "document_path": chunk.get("document_path", ""),
+                        "chunk_index": chunk.get("chunk_index", 0),
+                        "metadata": chunk.get("metadata", {}),
+                        "vector_similarity": chunk.get("similarity"),
+                        "bm25_rank": chunk.get("bm25_rank"),
+                        "rrf_score": score,
+                    }
+                )
 
             return documents
 
@@ -919,11 +892,11 @@ class UniversalRAGEngine:
     async def _warmup_reranker(self) -> None:
         """
         Warm up the cross-encoder reranker model during startup.
-        
+
         This ensures:
         1. Model is downloaded and cached (fails fast if unavailable)
         2. Model is loaded into memory (avoids cold start on first request)
-        
+
         Raises:
             Exception: If model cannot be loaded (e.g., offline deployment without cache)
         """
@@ -942,40 +915,32 @@ class UniversalRAGEngine:
                 "Model: cross-encoder/ms-marco-MiniLM-L-6-v2"
             ) from e
 
-    async def _rerank_documents(
-        self, query: str, documents: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+    async def _rerank_documents(self, query: str, documents: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Rerank documents using a cross-encoder model for improved accuracy."""
         reranker = get_reranker()
-        
+
         # Rerank all retrieved documents (no top_k limit)
         reranked = reranker.rerank(query, documents)
-        
+
         # Use rerank_score as the new similarity_score for post-processing
         for doc in reranked:
             doc["similarity_score"] = doc["rerank_score"]
-        
+
         logger.info(f"Reranked {len(reranked)} documents")
         return reranked
 
-    def _post_process_results(
-        self, documents: List[Dict[str, Any]], config: RAGConfig
-    ) -> List[Dict[str, Any]]:
+    def _post_process_results(self, documents: list[dict[str, Any]], config: RAGConfig) -> list[dict[str, Any]]:
         """Post-process and filter results based on similarity and token limits"""
         # For hybrid search (RRF scores), skip similarity filtering since DB already filtered
         # RRF scores are small values (~0.01-0.05) and can't be compared to similarity thresholds
         is_hybrid = documents and "rrf_score" in documents[0]
-        
+
         if is_hybrid:
             # Hybrid results are already filtered by DB and sorted by RRF score
             filtered = documents
         else:
             # Pure vector search: filter by similarity threshold
-            filtered = [
-                doc
-                for doc in documents
-                if doc["similarity_score"] >= config.similarity_threshold
-            ]
+            filtered = [doc for doc in documents if doc["similarity_score"] >= config.similarity_threshold]
 
         # Sort by similarity score (descending) - works for both RRF and cosine similarity
         filtered.sort(key=lambda x: x["similarity_score"], reverse=True)
@@ -1008,9 +973,7 @@ class UniversalRAGEngine:
         # Use the LLM client's acomplete method
         return await self.llm_client.acomplete(prompt)
 
-    def _get_features_used(
-        self, config: RAGConfig, refined_questions: Optional[str]
-    ) -> List[str]:
+    def _get_features_used(self, config: RAGConfig, refined_questions: str | None) -> list[str]:
         """Get list of features used in this search"""
         features = [
             f"{config.model_name}_embeddings",
@@ -1022,11 +985,7 @@ class UniversalRAGEngine:
         if config.enable_reranking:
             features.append("reranking")
 
-        if (
-            config.enable_question_refinement
-            and refined_questions
-            and refined_questions != ""
-        ):
+        if config.enable_question_refinement and refined_questions and refined_questions != "":
             features.append("question_refinement")
 
         return features
@@ -1034,14 +993,12 @@ class UniversalRAGEngine:
     async def close(self):
         """Clean up resources"""
         # Close LLM client if it has a close method
-        if self.llm_client and hasattr(self.llm_client, 'close'):
+        if self.llm_client and hasattr(self.llm_client, "close"):
             await self.llm_client.close()
 
 
 # Convenience functions for common use cases
-async def search_documents(
-    query: str, model_name: Optional[str] = None, **options
-) -> RAGResult:
+async def search_documents(query: str, model_name: str | None = None, **options) -> RAGResult:
     """
     Convenience function for simple document search.
 
@@ -1057,7 +1014,7 @@ async def search_documents(
         model_name=model_name,
         **{k: v for k, v in options.items() if hasattr(RAGConfig, k)},
     )
-    
+
     engine = UniversalRAGEngine(config)
     await engine.start()
     return await engine.search_documents(query, **options)

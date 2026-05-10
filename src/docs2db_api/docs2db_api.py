@@ -3,8 +3,8 @@
 import asyncio
 import os
 import sys
-from enum import Enum
-from typing import Annotated, Optional
+from enum import StrEnum
+from typing import Annotated
 
 import structlog
 import typer
@@ -27,16 +27,18 @@ logger = structlog.get_logger(__name__)
 
 def _suppress_all_logging() -> None:
     """Suppress all logging output for clean shell-friendly output."""
-    # Redirect structlog output to /dev/null
+    # Redirect structlog output to /dev/null; file handle intentionally kept open for structlog lifetime
     structlog.configure(
-        logger_factory=structlog.PrintLoggerFactory(file=open(os.devnull, "w")),
+        logger_factory=structlog.PrintLoggerFactory(file=open(os.devnull, "w")),  # noqa: SIM115
     )
 
 
-class OutputFormat(str, Enum):
+class OutputFormat(StrEnum):
     """Output format for query results."""
+
     text = "text"  # Plain text, shell-friendly
-    log = "log"    # Verbose logs (default)
+    log = "log"  # Verbose logs (default)
+
 
 app = typer.Typer(help="Make a RAG Database from source content")
 
@@ -49,7 +51,7 @@ def db_start() -> None:
             raise typer.Exit(1)
     except Docs2DBException as e:
         logger.error(str(e))
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
 
 
 @app.command(name="db-stop")
@@ -60,13 +62,13 @@ def db_stop() -> None:
             raise typer.Exit(1)
     except Docs2DBException as e:
         logger.error(str(e))
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
 
 
 @app.command(name="db-destroy")
 def db_destroy() -> None:
     """Stop PostgreSQL database and remove all data volumes.
-    
+
     WARNING: This will permanently delete all database data!
     """
     try:
@@ -74,29 +76,29 @@ def db_destroy() -> None:
             raise typer.Exit(1)
     except Docs2DBException as e:
         logger.error(str(e))
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
 
 
 @app.command(name="db-status")
 def db_status(
     host: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(help="Database host (auto-detected from compose file)"),
     ] = None,
     port: Annotated[
-        Optional[int],
+        int | None,
         typer.Option(help="Database port (auto-detected from compose file)"),
     ] = None,
     db: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(help="Database name (auto-detected from compose file)"),
     ] = None,
     user: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(help="Database user (auto-detected from compose file)"),
     ] = None,
     password: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(help="Database password (auto-detected from compose file)"),
     ] = None,
 ) -> None:
@@ -113,32 +115,30 @@ def db_status(
         )
     except Docs2DBException as e:
         logger.error(str(e))
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
 
 
 @app.command(name="db-restore")
 def db_restore(
-    input_file: Annotated[
-        str, typer.Argument(help="Input file path for the database dump")
-    ],
+    input_file: Annotated[str, typer.Argument(help="Input file path for the database dump")],
     host: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(help="Database host (auto-detected from compose file)"),
     ] = None,
     port: Annotated[
-        Optional[int],
+        int | None,
         typer.Option(help="Database port (auto-detected from compose file)"),
     ] = None,
     db: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(help="Database name (auto-detected from compose file)"),
     ] = None,
     user: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(help="Database user (auto-detected from compose file)"),
     ] = None,
     password: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(help="Database password (auto-detected from compose file)"),
     ] = None,
     verbose: Annotated[bool, typer.Option(help="Show psql output")] = False,
@@ -157,32 +157,30 @@ def db_restore(
             raise typer.Exit(1)
     except Docs2DBException as e:
         logger.error(str(e))
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
 
 
 @app.command()
 def manifest(
-    output_file: Annotated[
-        str, typer.Option(help="Output file path for the manifest")
-    ] = "manifest.txt",
+    output_file: Annotated[str, typer.Option(help="Output file path for the manifest")] = "manifest.txt",
     host: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(help="Database host (auto-detected from compose file)"),
     ] = None,
     port: Annotated[
-        Optional[int],
+        int | None,
         typer.Option(help="Database port (auto-detected from compose file)"),
     ] = None,
     db: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(help="Database name (auto-detected from compose file)"),
     ] = None,
     user: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(help="Database user (auto-detected from compose file)"),
     ] = None,
     password: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(help="Database password (auto-detected from compose file)"),
     ] = None,
 ) -> None:
@@ -201,39 +199,35 @@ def manifest(
             raise typer.Exit(1)
     except Docs2DBException as e:
         logger.error(str(e))
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
 
 
 @app.command()
 def query(
     query_text: Annotated[str, typer.Argument(help="Search query")],
     model: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(help="Embedding model to use (auto-detected if not specified)"),
     ] = None,
     limit: Annotated[int, typer.Option(help="Maximum number of results")] = 10,
-    threshold: Annotated[
-        float, typer.Option(help="Similarity threshold (0.0-1.0)")
-    ] = 0.7,
-    refine: Annotated[
-        bool, typer.Option(help="Enable question refinement")
-    ] = True,
+    threshold: Annotated[float, typer.Option(help="Similarity threshold (0.0-1.0)")] = 0.7,
+    refine: Annotated[bool, typer.Option(help="Enable question refinement")] = True,
     refinement_prompt: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(help="Custom prompt for query refinement"),
     ] = None,
-    format: Annotated[
+    output_format: Annotated[
         OutputFormat,
-        typer.Option(help="Output format: text (results only) or log (verbose, default)"),
+        typer.Option("--format", help="Output format: text (results only) or log (verbose, default)"),
     ] = OutputFormat.log,
     max_chars: Annotated[
-        Optional[int],
+        int | None,
         typer.Option(help="Maximum total characters for text output"),
     ] = None,
 ) -> None:
     """Search documents using RAG engine with hybrid search and reranking."""
     # For text/json formats, suppress all logging to keep output clean
-    quiet_mode = format != OutputFormat.log
+    quiet_mode = output_format != OutputFormat.log
     if quiet_mode:
         _suppress_all_logging()
 
@@ -249,14 +243,14 @@ def query(
             engine = UniversalRAGEngine(config, refinement_prompt=refinement_prompt)
             await engine.start()
 
-            if format == OutputFormat.log:
+            if output_format == OutputFormat.log:
                 model_info = f"model={engine.config.model_name}" if engine.config.model_name else "model=auto-detected"
                 logger.info("Searching", query=query_text, model_info=model_info, threshold=threshold, limit=limit)
 
             result = await engine.search_documents(query_text)
 
             # Output based on format
-            if format == OutputFormat.text:
+            if output_format == OutputFormat.text:
                 _output_text(result, max_chars)
             else:
                 _output_log(result)
@@ -264,18 +258,18 @@ def query(
         asyncio.run(run_query())
 
     except Exception as e:
-        if format == OutputFormat.log:
+        if output_format == OutputFormat.log:
             logger.error(f"Query failed: {e}")
         else:
             print(f"Error: {e}", file=sys.stderr)
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
 
 
-def _output_text(result, max_chars: Optional[int]) -> None:
+def _output_text(result, max_chars: int | None) -> None:
     """Output documents as plain text, suitable for shell scripts."""
     separator = "\n---\n"
     texts = [doc["text"] for doc in result.documents]
-    
+
     if max_chars:
         # Truncate to max_chars, trying to include as many docs as possible
         output_parts = []
@@ -293,7 +287,7 @@ def _output_text(result, max_chars: Optional[int]) -> None:
         output = separator.join(output_parts)
     else:
         output = separator.join(texts)
-    
+
     print(output)
 
 
@@ -319,4 +313,3 @@ def _output_log(result) -> None:
             similarity=doc["similarity_score"],
             source=doc["document_path"],
         )
-

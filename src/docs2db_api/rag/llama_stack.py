@@ -30,16 +30,15 @@ Usage:
 import asyncio
 import os
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import structlog
 
 # Add threading safety for ML libraries
-os.environ['OMP_NUM_THREADS'] = '1'
-os.environ['MKL_NUM_THREADS'] = '1'
-os.environ['TOKENIZERS_PARALLELISM'] = 'false'
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-from docs2db_api.embeddings import EMBEDDING_CONFIGS
 from docs2db_api.rag.engine import LLMClient, RAGConfig, UniversalRAGEngine
 
 logger = structlog.get_logger(__name__)
@@ -47,6 +46,7 @@ logger = structlog.get_logger(__name__)
 # Set torch threading after import
 try:
     import torch
+
     torch.set_num_threads(1)
     logger.info("🔧 Set PyTorch to single-threaded mode")
 except ImportError:
@@ -85,9 +85,7 @@ except ImportError:
         pass
 
     class ToolInvocationResult:
-        def __init__(
-            self, content=None, error_message=None, error_code=None, metadata=None
-        ):
+        def __init__(self, content=None, error_message=None, error_code=None, metadata=None):
             self.content = content
             self.error_message = error_message
             self.error_code = error_code
@@ -100,9 +98,7 @@ except ImportError:
             self.parameters = parameters
 
     class ToolParameter:
-        def __init__(
-            self, name, parameter_type, description, required=True, default=None
-        ):
+        def __init__(self, name, parameter_type, description, required=True, default=None):
             self.name = name
             self.parameter_type = parameter_type
             self.description = description
@@ -147,7 +143,7 @@ class Docs2DBRAGAdapter(ToolRuntime):
             logger.info("✅ RAG configuration created")
 
             logger.info("🔧 Initializing Universal RAG Engine...")
-            
+
             # Create LLM client for query refinement
             llm_client = None
             if rag_config.enable_question_refinement:
@@ -156,7 +152,7 @@ class Docs2DBRAGAdapter(ToolRuntime):
                     logger.info("✅ LLM client created for query refinement")
                 except Exception as e:
                     logger.warning(f"Failed to create LLM client, query refinement disabled: {e}")
-            
+
             # Initialize the RAG engine with LLM client
             self.rag_engine = UniversalRAGEngine(rag_config, llm_client)
             logger.info("✅ Universal RAG Engine created")
@@ -169,7 +165,7 @@ class Docs2DBRAGAdapter(ToolRuntime):
             raise e
 
     async def list_runtime_tools(
-        self, tool_group_id: Optional[str] = None, mcp_endpoint: Optional[str] = None
+        self, tool_group_id: str | None = None, mcp_endpoint: str | None = None
     ) -> ListToolDefsResponse:
         """
         List all available runtime tools provided by this adapter.
@@ -222,19 +218,19 @@ class Docs2DBRAGAdapter(ToolRuntime):
         tools = [
             ToolDef(
                 name="search_documents",
-                description="Search RHEL knowledge base using advanced RAG techniques. Returns relevant document chunks with similarity scores.",
+                description="Search RHEL knowledge base using advanced RAG techniques. Returns relevant document chunks with similarity scores.",  # noqa: E501
                 parameters=search_params,
             ),
             ToolDef(
                 name="search_and_generate",
-                description="Search RHEL knowledge base and generate a comprehensive response using retrieved documents.",
+                description="Search RHEL knowledge base and generate a comprehensive response using retrieved documents.",  # noqa: E501
                 parameters=generate_params,
             ),
         ]
 
         return ListToolDefsResponse(data=tools)
 
-    async def register_toolgroup(self, toolgroup: Dict[str, Any]) -> None:
+    async def register_toolgroup(self, toolgroup: dict[str, Any]) -> None:
         """
         Register a toolgroup with this provider.
 
@@ -245,9 +241,7 @@ class Docs2DBRAGAdapter(ToolRuntime):
         # For inline providers, toolgroups are registered automatically
         pass
 
-    async def invoke_tool(
-        self, tool_name: str, kwargs: Dict[str, Any]
-    ) -> ToolInvocationResult:
+    async def invoke_tool(self, tool_name: str, kwargs: dict[str, Any]) -> ToolInvocationResult:
         """
         Invoke a RAG tool with given arguments
 
@@ -281,9 +275,7 @@ class Docs2DBRAGAdapter(ToolRuntime):
                 error_code=500,
             )
 
-    async def _handle_search_documents(
-        self, kwargs: Dict[str, Any]
-    ) -> ToolInvocationResult:
+    async def _handle_search_documents(self, kwargs: dict[str, Any]) -> ToolInvocationResult:
         """Handle document search requests"""
 
         # Extract and validate arguments
@@ -298,16 +290,10 @@ class Docs2DBRAGAdapter(ToolRuntime):
         # Extract optional parameters with defaults
         model_name = kwargs.get("model_name", self.config.model_name)
         max_chunks = kwargs.get("max_chunks", self.config.max_chunks)
-        similarity_threshold = kwargs.get(
-            "similarity_threshold", self.config.similarity_threshold
-        )
-        enable_question_refinement = kwargs.get(
-            "enable_question_refinement", self.config.enable_question_refinement
-        )
+        similarity_threshold = kwargs.get("similarity_threshold", self.config.similarity_threshold)
+        enable_question_refinement = kwargs.get("enable_question_refinement", self.config.enable_question_refinement)
 
-        logger.info(
-            f"🔍 Processing document search: {query[:100]}... (model: {model_name})"
-        )
+        logger.info(f"🔍 Processing document search: {query[:100]}... (model: {model_name})")
 
         try:
             logger.info("🔧 About to call rag_engine.search_documents...")
@@ -326,36 +312,30 @@ class Docs2DBRAGAdapter(ToolRuntime):
             documents_summary = f"Found {len(result.documents)} relevant documents:\n\n"
 
             for i, doc in enumerate(result.documents, 1):
-                documents_summary += (
-                    f"Document {i} (similarity: {doc['similarity_score']:.3f}):\n"
-                )
-                documents_summary += (
-                    f"{doc['text'][:500]}{'...' if len(doc['text']) > 500 else ''}\n\n"
-                )
+                documents_summary += f"Document {i} (similarity: {doc['similarity_score']:.3f}):\n"
+                documents_summary += f"{doc['text'][:500]}{'...' if len(doc['text']) > 500 else ''}\n\n"
 
             # Create comprehensive metadata
             metadata = result.metadata or {}
-            metadata.update({
-                "tool_name": "search_documents",
-                "documents_count": len(result.documents),
-                "query_original": query,
-                "refined_questions": result.refined_questions,
-                "documents_details": [
-                    {
-                        "text_preview": doc["text"][:200] + "..."
-                        if len(doc["text"]) > 200
-                        else doc["text"],
-                        "similarity_score": doc["similarity_score"],
-                        "document_path": doc["document_path"],
-                        "chunk_index": doc["chunk_index"],
-                    }
-                    for doc in result.documents
-                ],
-            })
-
-            logger.info(
-                f"✅ Document search completed - {len(result.documents)} documents found"
+            metadata.update(
+                {
+                    "tool_name": "search_documents",
+                    "documents_count": len(result.documents),
+                    "query_original": query,
+                    "refined_questions": result.refined_questions,
+                    "documents_details": [
+                        {
+                            "text_preview": doc["text"][:200] + "..." if len(doc["text"]) > 200 else doc["text"],
+                            "similarity_score": doc["similarity_score"],
+                            "document_path": doc["document_path"],
+                            "chunk_index": doc["chunk_index"],
+                        }
+                        for doc in result.documents
+                    ],
+                }
             )
+
+            logger.info(f"✅ Document search completed - {len(result.documents)} documents found")
 
             return ToolInvocationResult(content=documents_summary, metadata=metadata)
 
@@ -367,9 +347,7 @@ class Docs2DBRAGAdapter(ToolRuntime):
                 error_code=500,
             )
 
-    async def _handle_search_and_generate(
-        self, kwargs: Dict[str, Any]
-    ) -> ToolInvocationResult:
+    async def _handle_search_and_generate(self, kwargs: dict[str, Any]) -> ToolInvocationResult:
         """Handle search + response generation requests"""
 
         # Extract and validate arguments
@@ -384,16 +362,10 @@ class Docs2DBRAGAdapter(ToolRuntime):
         # Extract optional parameters
         model_name = kwargs.get("model_name", self.config.model_name)
         max_chunks = kwargs.get("max_chunks", self.config.max_chunks)
-        similarity_threshold = kwargs.get(
-            "similarity_threshold", self.config.similarity_threshold
-        )
-        enable_question_refinement = kwargs.get(
-            "enable_question_refinement", self.config.enable_question_refinement
-        )
+        similarity_threshold = kwargs.get("similarity_threshold", self.config.similarity_threshold)
+        enable_question_refinement = kwargs.get("enable_question_refinement", self.config.enable_question_refinement)
 
-        logger.info(
-            f"🚀 Processing search and generate: {query[:100]}... (model: {model_name})"
-        )
+        logger.info(f"🚀 Processing search and generate: {query[:100]}... (model: {model_name})")
 
         try:
             # For now, fall back to document search since we don't have LLM integration yet
@@ -409,32 +381,34 @@ class Docs2DBRAGAdapter(ToolRuntime):
 
             # Create a summary response based on retrieved documents
             if not result.documents:
-                response_content = (
-                    "I couldn't find relevant information to answer your question."
-                )
+                response_content = "I couldn't find relevant information to answer your question."
             else:
-                response_content = f"Based on {len(result.documents)} relevant documents from the RHEL knowledge base:\n\n"
+                response_content = (
+                    f"Based on {len(result.documents)} relevant documents from the RHEL knowledge base:\n\n"
+                )
 
                 # Include top documents in response
                 for i, doc in enumerate(result.documents[:3], 1):  # Top 3 documents
-                    response_content += f"Document {i}: {doc['text'][:300]}{'...' if len(doc['text']) > 300 else ''}\n\n"
+                    response_content += (
+                        f"Document {i}: {doc['text'][:300]}{'...' if len(doc['text']) > 300 else ''}\n\n"
+                    )
 
-                response_content += f"(Note: Full response generation requires LLM integration. Found {len(result.documents)} total relevant documents.)"
+                response_content += f"(Note: Full response generation requires LLM integration. Found {len(result.documents)} total relevant documents.)"  # noqa: E501
 
             # Create metadata
             metadata = result.metadata or {}
-            metadata.update({
-                "tool_name": "search_and_generate",
-                "documents_count": len(result.documents),
-                "query_original": query,
-                "refined_questions": result.refined_questions,
-                "generation_status": "fallback_to_search_only",
-                "documents_used": len(result.documents),
-            })
-
-            logger.info(
-                f"✅ Search and generate completed - {len(result.documents)} documents processed"
+            metadata.update(
+                {
+                    "tool_name": "search_and_generate",
+                    "documents_count": len(result.documents),
+                    "query_original": query,
+                    "refined_questions": result.refined_questions,
+                    "generation_status": "fallback_to_search_only",
+                    "documents_used": len(result.documents),
+                }
             )
+
+            logger.info(f"✅ Search and generate completed - {len(result.documents)} documents processed")
 
             return ToolInvocationResult(content=response_content, metadata=metadata)
 
@@ -448,9 +422,7 @@ class Docs2DBRAGAdapter(ToolRuntime):
 
 
 # Required function for inline providers
-async def get_provider_impl(
-    config: Docs2DBRAGConfig, deps: Dict[Any, Any]
-) -> Docs2DBRAGAdapter:
+async def get_provider_impl(config: Docs2DBRAGConfig, deps: dict[Any, Any]) -> Docs2DBRAGAdapter:
     """
     Required function for Llama Stack inline providers.
 
@@ -469,9 +441,7 @@ async def get_provider_impl(
 # For testing the provider independently
 async def test_provider():
     """Test the provider functionality"""
-    config = Docs2DBRAGConfig(
-        model_name="granite-30m-english", similarity_threshold=0.7, max_chunks=5
-    )
+    config = Docs2DBRAGConfig(model_name="granite-30m-english", similarity_threshold=0.7, max_chunks=5)
 
     adapter = await get_provider_impl(config, {})
 

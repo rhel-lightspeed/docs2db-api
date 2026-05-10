@@ -1,7 +1,5 @@
 """Configuration settings for docs2db-api using Pydantic."""
 
-from typing import Optional
-
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -21,9 +19,7 @@ class LLMSettings(BaseSettings):
     temperature: float = Field(default=0.7, description="LLM temperature for generation")
     max_tokens: int = Field(default=500, description="Maximum tokens for LLM response")
 
-    model_config = SettingsConfigDict(
-        env_prefix="DOCS2DB_LLM_", env_file=".env", extra="ignore"
-    )
+    model_config = SettingsConfigDict(env_prefix="DOCS2DB_LLM_", env_file=".env", extra="ignore")
 
 
 class DatabaseSettings(BaseSettings):
@@ -43,14 +39,12 @@ class DatabaseSettings(BaseSettings):
     database: str = Field(default="ragdb", description="PostgreSQL database name")
     user: str = Field(default="postgres", description="PostgreSQL user")
     password: str = Field(default="postgres", description="PostgreSQL password")
-    url: Optional[str] = Field(
+    url: str | None = Field(
         default=None,
         description="PostgreSQL connection URL (alternative to individual settings)",
     )
 
-    model_config = SettingsConfigDict(
-        env_prefix="DOCS2DB_DB_", env_file=".env", extra="ignore"
-    )
+    model_config = SettingsConfigDict(env_prefix="DOCS2DB_DB_", env_file=".env", extra="ignore")
 
 
 class RAGSettings(BaseSettings):
@@ -69,31 +63,15 @@ class RAGSettings(BaseSettings):
     CLI/kwargs → environment → database → these defaults
     """
 
-    similarity_threshold: float = Field(
-        default=0.7, ge=0.0, le=1.0, description="Minimum similarity score for results"
-    )
-    max_chunks: int = Field(
-        default=10, ge=1, description="Maximum number of chunks to retrieve"
-    )
-    max_tokens_in_context: int = Field(
-        default=4096, ge=1, description="Maximum tokens to include in context"
-    )
-    enable_question_refinement: bool = Field(
-        default=True, description="Enable LLM-based query refinement"
-    )
-    enable_reranking: bool = Field(
-        default=True, description="Enable cross-encoder reranking"
-    )
-    refinement_questions_count: int = Field(
-        default=5, ge=1, description="Number of refined questions to generate"
-    )
-    refinement_prompt: Optional[str] = Field(
-        default=None, description="Custom prompt template for query refinement"
-    )
+    similarity_threshold: float = Field(default=0.7, ge=0.0, le=1.0, description="Minimum similarity score for results")
+    max_chunks: int = Field(default=10, ge=1, description="Maximum number of chunks to retrieve")
+    max_tokens_in_context: int = Field(default=4096, ge=1, description="Maximum tokens to include in context")
+    enable_question_refinement: bool = Field(default=True, description="Enable LLM-based query refinement")
+    enable_reranking: bool = Field(default=True, description="Enable cross-encoder reranking")
+    refinement_questions_count: int = Field(default=5, ge=1, description="Number of refined questions to generate")
+    refinement_prompt: str | None = Field(default=None, description="Custom prompt template for query refinement")
 
-    model_config = SettingsConfigDict(
-        env_prefix="DOCS2DB_RAG_", env_file=".env", extra="ignore"
-    )
+    model_config = SettingsConfigDict(env_prefix="DOCS2DB_RAG_", env_file=".env", extra="ignore")
 
 
 class LoggingSettings(BaseSettings):
@@ -104,9 +82,7 @@ class LoggingSettings(BaseSettings):
         description="Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)",
     )
 
-    model_config = SettingsConfigDict(
-        env_prefix="DOCS2DB_", env_file=".env", extra="ignore"
-    )
+    model_config = SettingsConfigDict(env_prefix="DOCS2DB_", env_file=".env", extra="ignore")
 
 
 class EmbeddingSettings(BaseSettings):
@@ -117,9 +93,7 @@ class EmbeddingSettings(BaseSettings):
         description="Run in offline mode (only use locally cached models)",
     )
 
-    model_config = SettingsConfigDict(
-        env_prefix="DOCS2DB_", env_file=".env", extra="ignore"
-    )
+    model_config = SettingsConfigDict(env_prefix="DOCS2DB_", env_file=".env", extra="ignore")
 
 
 class Settings(BaseSettings):
@@ -131,11 +105,8 @@ class Settings(BaseSettings):
     logging: LoggingSettings = Field(default_factory=LoggingSettings)
     embedding: EmbeddingSettings = Field(default_factory=EmbeddingSettings)
 
-    model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", extra="ignore"
-    )
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
 
 # Global settings instance
 settings = Settings()
-
