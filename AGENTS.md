@@ -4,9 +4,9 @@ Knowledge base for AI agents working on this repository.
 
 ## Project Overview
 
-docs2db-api is a FastAPI query server and CLI for RAG retrieval from databases built by docs2db.
+docs2db-api is a Typer CLI library for RAG retrieval from databases built by docs2db.
 
-**Architecture:** FastAPI HTTP server + Typer CLI → async psycopg v3 → PostgreSQL/pgvector → hybrid BM25+vector search → cross-encoder reranking → optional LLM query refinement
+**Architecture:** Typer CLI → async psycopg v3 → PostgreSQL/pgvector → hybrid BM25+vector search → cross-encoder reranking → optional LLM query refinement
 
 **Related repositories:**
 
@@ -18,7 +18,6 @@ docs2db-api is a FastAPI query server and CLI for RAG retrieval from databases b
 **Python:** 3.12 (strict — no other versions)
 **Package manager:** uv
 **CLI framework:** Typer
-**API framework:** FastAPI
 
 ## Development Environment
 
@@ -31,9 +30,6 @@ uv run pre-commit install
 
 # Start the database (requires Docker/Podman)
 uv run docs2db-api db-start
-
-# Start the API server
-uv run uvicorn docs2db_api.docs2db_api:api_app --reload
 
 # Run tests (requires PostgreSQL on port 5433)
 make test
