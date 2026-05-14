@@ -114,7 +114,13 @@ def _get_setting(
     if env_value is not None:
         try:
             if setting_type is bool:
-                result = env_value.lower() in ("true", "1", "yes")
+                normalized = env_value.strip().lower()
+                if normalized in {"true", "1", "yes"}:
+                    result = True
+                elif normalized in {"false", "0", "no"}:
+                    result = False
+                else:
+                    raise ValueError(f"invalid boolean value: {env_value}")
             elif setting_type is int:
                 result = int(env_value)
             elif setting_type is float:
@@ -384,7 +390,6 @@ class UniversalRAGEngine:
 
         # Initialize embedding provider
         self.embedding_provider = self._get_embedding_provider()
-        self._started = True
 
         # TODO(RSPEED-3062): Replace asserts with if/raise RuntimeError
         assert self.config.model_name is not None, "model_name must be set after start()"
@@ -398,6 +403,8 @@ class UniversalRAGEngine:
         # Warm up cross-encoder reranker if enabled
         if self.config.enable_reranking:
             await self._warmup_reranker()
+
+        self._started = True
 
     async def _apply_settings_hierarchy(self) -> None:
         """Apply settings hierarchy: CLI/kwargs → env → database → defaults.
