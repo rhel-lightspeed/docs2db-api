@@ -114,11 +114,23 @@ venvPath = "."
 venv = ".venv"
 
 [tool.ruff]
-target-version = "py312"
 line-length = 120
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "UP", "S", "B", "A", "C4", "SIM", "TID252"]
+select = [
+    "E",      # pycodestyle errors
+    "F",      # pyflakes
+    "W",      # pycodestyle warnings
+    "I",      # isort
+    "UP",     # pyupgrade
+    "S",      # bandit (security)
+    "B",      # flake8-bugbear
+    "A",      # flake8-builtins
+    "C4",     # flake8-comprehensions
+    "SIM",    # flake8-simplify
+    "TID252", # flake8-tidy-imports (relative imports)
+    "RUF100", # flag unnecessary noqa comments
+]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101", "S104"]
