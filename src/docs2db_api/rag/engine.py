@@ -386,7 +386,7 @@ class UniversalRAGEngine:
         self.embedding_provider = self._get_embedding_provider()
         self._started = True
 
-        # Assert all required config values are set after applying hierarchy
+        # TODO(RSPEED-3062): Replace asserts with if/raise RuntimeError
         assert self.config.model_name is not None, "model_name must be set after start()"
         assert self.config.similarity_threshold is not None, "similarity_threshold must be set"
         assert self.config.max_chunks is not None, "max_chunks must be set"
@@ -413,7 +413,7 @@ class UniversalRAGEngine:
         db_settings: dict[str, bool | int | float | None] = {}
         db_refinement_prompt: str | None = None
 
-        assert self.db_manager is not None, "db_manager must be initialized"
+        assert self.db_manager is not None, "db_manager must be initialized"  # TODO(RSPEED-3062)
 
         try:
             async with await self.db_manager.get_direct_connection() as conn:
@@ -520,12 +520,13 @@ class UniversalRAGEngine:
 
     def _get_embedding_provider(self):
         """Get the appropriate embedding provider for the configured model"""
+        # TODO(RSPEED-3062): Replace asserts with if/raise
         assert self.model_config is not None, "model_config must be set before calling this method"
 
         provider_cls = self.model_config["cls"]
 
         if provider_cls == GraniteEmbeddingProvider:
-            assert self.config.model_name is not None  # Set by start()
+            assert self.config.model_name is not None  # Set by start()  # TODO(RSPEED-3062)
             return GraniteEmbeddingProvider(
                 model_name=self.config.model_name,
                 config=self.model_config,
@@ -555,7 +556,7 @@ class UniversalRAGEngine:
         if not self._started:
             raise RuntimeError("RAG engine not initialized. Call await engine.start() first.")
 
-        # Type checker assertions - these are guaranteed to be set after start()
+        # TODO(RSPEED-3062): Replace asserts with cast() — guaranteed set after start()
         assert self.db_manager is not None
         assert self.embedding_provider is not None
         assert self.model_config is not None
@@ -818,7 +819,7 @@ class UniversalRAGEngine:
 
     async def _generate_query_embeddings(self, query_text: str) -> list[float]:
         """Generate embeddings for the query text"""
-        assert self.embedding_provider is not None, "Engine must be started first"
+        assert self.embedding_provider is not None, "Engine must be started first"  # TODO(RSPEED-3062)
 
         try:
             # Handle both single queries and refined questions
@@ -855,12 +856,13 @@ class UniversalRAGEngine:
         self, query_embedding: list[float], config: RAGConfig, query_text: str
     ) -> list[dict[str, Any]]:
         """Retrieve similar documents from the database using hybrid search"""
+        # TODO(RSPEED-3062): Replace asserts with if/raise RuntimeError
         assert self.db_manager is not None, "Engine must be started first"
         assert config.model_name is not None, "Model name must be set"
 
         try:
             # Always use hybrid search (opinionated choice)
-            assert config.max_chunks is not None and config.similarity_threshold is not None  # Set by start()
+            assert config.max_chunks is not None and config.similarity_threshold is not None  # Set by start()  # TODO(RSPEED-3062)
             hybrid_chunks = await self.db_manager.search_hybrid(
                 query_embedding=query_embedding,
                 query_text=query_text,
@@ -957,7 +959,7 @@ class UniversalRAGEngine:
         total_tokens = 0
         final_docs = []
 
-        assert config.max_tokens_in_context is not None  # Set by start()
+        assert config.max_tokens_in_context is not None  # Set by start()  # TODO(RSPEED-3062)
         for doc in filtered:
             # Rough token estimation (1 token ≈ 4 characters)
             doc_tokens = len(doc["text"]) // 4
