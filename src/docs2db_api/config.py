@@ -1,7 +1,8 @@
 """Configuration settings for docs2db-api using Pydantic."""
 
 from pydantic import Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings
+from pydantic_settings import SettingsConfigDict
 
 
 class LLMSettings(BaseSettings):

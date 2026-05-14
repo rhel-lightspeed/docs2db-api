@@ -17,15 +17,20 @@ Architecture:
 """
 
 from dataclasses import dataclass
-from typing import Any, cast, overload
+from typing import Any
+from typing import cast
+from typing import overload
 
 import httpx
 import structlog
 
 from docs2db_api.config import settings
-from docs2db_api.database import DatabaseManager, get_db_config
-from docs2db_api.embeddings import EMBEDDING_CONFIGS, GraniteEmbeddingProvider
+from docs2db_api.database import DatabaseManager
+from docs2db_api.database import get_db_config
+from docs2db_api.embeddings import EMBEDDING_CONFIGS
+from docs2db_api.embeddings import GraniteEmbeddingProvider
 from docs2db_api.reranker import get_reranker
+
 
 # Configure logging
 logger = structlog.get_logger(__name__)

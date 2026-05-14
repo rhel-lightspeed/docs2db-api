@@ -4,9 +4,12 @@ from typing import Any
 
 import structlog
 import torch
-from transformers import AutoModel, AutoTokenizer
+
+from transformers import AutoModel
+from transformers import AutoTokenizer
 
 from docs2db_api.config import settings
+
 
 logger = structlog.get_logger(__name__)
 

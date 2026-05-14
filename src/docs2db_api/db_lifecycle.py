@@ -2,11 +2,13 @@
 
 import shutil
 import subprocess
+
 from pathlib import Path
 
 import structlog
 
 from docs2db_api.exceptions import Docs2DBException
+
 
 logger = structlog.get_logger()
 

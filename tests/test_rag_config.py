@@ -2,7 +2,8 @@
 
 import os
 
-from docs2db_api.rag.engine import DEFAULT_RAG_SETTINGS, RAGConfig
+from docs2db_api.rag.engine import DEFAULT_RAG_SETTINGS
+from docs2db_api.rag.engine import RAGConfig
 
 
 class TestRAGConfig:

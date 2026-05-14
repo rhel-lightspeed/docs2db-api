@@ -4,17 +4,23 @@ import json
 import logging
 import os
 import subprocess
-from datetime import UTC, datetime
+
+from datetime import datetime
+from datetime import UTC
 from pathlib import Path
 from typing import Any
 
 import psycopg
 import structlog
 import yaml
-from psycopg.sql import SQL, Identifier
+
+from psycopg.sql import Identifier
+from psycopg.sql import SQL
 
 from docs2db_api.config import settings
-from docs2db_api.exceptions import ConfigurationError, DatabaseError
+from docs2db_api.exceptions import ConfigurationError
+from docs2db_api.exceptions import DatabaseError
+
 
 logger = structlog.get_logger()
 

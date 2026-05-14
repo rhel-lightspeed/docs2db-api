@@ -3,24 +3,23 @@
 import asyncio
 import os
 import sys
+
 from enum import StrEnum
 from typing import Annotated
 
 import structlog
 import typer
 
-from docs2db_api.database import (
-    check_database_status,
-    generate_manifest,
-    restore_database,
-)
-from docs2db_api.db_lifecycle import (
-    destroy_database,
-    start_database,
-    stop_database,
-)
+from docs2db_api.database import check_database_status
+from docs2db_api.database import generate_manifest
+from docs2db_api.database import restore_database
+from docs2db_api.db_lifecycle import destroy_database
+from docs2db_api.db_lifecycle import start_database
+from docs2db_api.db_lifecycle import stop_database
 from docs2db_api.exceptions import Docs2DBException
-from docs2db_api.rag.engine import RAGConfig, UniversalRAGEngine
+from docs2db_api.rag.engine import RAGConfig
+from docs2db_api.rag.engine import UniversalRAGEngine
+
 
 logger = structlog.get_logger(__name__)
 

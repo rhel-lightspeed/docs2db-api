@@ -3,7 +3,9 @@
 from typing import Any
 
 import structlog
+
 from sentence_transformers import CrossEncoder
+
 
 logger = structlog.get_logger(__name__)
 

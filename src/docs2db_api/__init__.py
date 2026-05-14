@@ -4,6 +4,7 @@ import structlog
 
 from docs2db_api.config import settings
 
+
 # Get log level from Pydantic settings
 log_level_str = settings.logging.log_level.upper()
 log_level = getattr(logging, log_level_str, logging.INFO)
