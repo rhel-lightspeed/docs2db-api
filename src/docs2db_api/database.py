@@ -238,7 +238,7 @@ class DatabaseManager:
                     "max_tokens_in_context": row[5],
                     "refinement_questions_count": row[6],
                 }
-            except Exception as e:
+            except Exception as e:  # TODO: RSPEED-3061 — narrow to psycopg.errors.UndefinedTable
                 logger.warning(f"Could not retrieve RAG settings: {e}")
                 return None
 
@@ -734,7 +734,7 @@ async def check_database_status(
                     f"  Models         : {metadata['embedding_models_count']}\n"
                     f"  Last modified  : {metadata['last_modified_at'].strftime('%Y-%m-%d %H:%M') if metadata['last_modified_at'] else 'Unknown'}"  # noqa: E501
                 )
-        except Exception:  # noqa: S110 -- schema_metadata table may not exist yet; absence is expected
+        except Exception:  # noqa: S110 — TODO: RSPEED-3061 — narrow to psycopg.errors.UndefinedTable
             # Schema metadata table doesn't exist yet
             pass
 
@@ -772,7 +772,7 @@ async def check_database_status(
                 logger.info("\nRecent Changes (last 5):")
                 for change_data in changes:
                     logger.info(db_manager.format_schema_change_display(change_data))
-        except Exception:  # noqa: S110 -- schema_changes table may not exist yet; absence is expected
+        except Exception:  # noqa: S110 — TODO: RSPEED-3061 — narrow to psycopg.errors.UndefinedTable
             # Schema changes table doesn't exist yet
             pass
 
