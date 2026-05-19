@@ -480,7 +480,7 @@ class DatabaseManager:
                 FROM combined
                 ORDER BY rrf_score DESC
                 LIMIT %s
-                """,
+                """,  # noqa: E501
                 (
                     # vector_results params
                     query_embedding,

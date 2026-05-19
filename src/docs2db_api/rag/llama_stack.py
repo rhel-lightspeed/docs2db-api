@@ -299,7 +299,7 @@ class Docs2DBRAGAdapter(ToolRuntime):
         try:
             logger.info("🔧 About to call rag_engine.search_documents...")
             # Perform document search
-            assert self.rag_engine is not None, "RAG engine must be initialized"  # TODO(RSPEED-3062)
+            assert self.rag_engine is not None, "RAG engine must be initialized"  # TODO(RSPEED-3062)  # noqa: S101
             result = await self.rag_engine.search_documents(
                 query,
                 model_name=model_name,
@@ -371,7 +371,7 @@ class Docs2DBRAGAdapter(ToolRuntime):
         try:
             # For now, fall back to document search since we don't have LLM integration yet
             # TODO: Implement full search_and_generate when LLM client is available
-            assert self.rag_engine is not None, "RAG engine must be initialized"  # TODO(RSPEED-3062)
+            assert self.rag_engine is not None, "RAG engine must be initialized"  # TODO(RSPEED-3062)  # noqa: S101
             result = await self.rag_engine.search_documents(
                 query,
                 model_name=model_name,
