@@ -1006,7 +1006,7 @@ class UniversalRAGEngine:
         if config.enable_reranking:
             features.append("reranking")
 
-        if config.enable_question_refinement and refined_questions and refined_questions != "":
+        if config.enable_question_refinement and refined_questions:
             features.append("question_refinement")
 
         return features
