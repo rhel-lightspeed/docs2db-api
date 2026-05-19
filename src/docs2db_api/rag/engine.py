@@ -99,7 +99,12 @@ def _get_setting(
 
 
 def _get_setting(
-    config_value: Any, env_var: str, db_value: Any, default_value: Any, setting_type: type, logger: Any
+    config_value: Any,
+    env_var: str,
+    db_value: Any,
+    default_value: Any,
+    setting_type: type,
+    logger: Any,
 ) -> Any:
     """Get setting value following hierarchy: CLI/kwargs → env → database → defaults."""
     import os
