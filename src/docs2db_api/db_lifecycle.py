@@ -2,17 +2,18 @@
 
 import shutil
 import subprocess
+
 from pathlib import Path
-from typing import Optional
 
 import structlog
 
 from docs2db_api.exceptions import Docs2DBException
 
+
 logger = structlog.get_logger()
 
 
-def detect_container_runtime() -> Optional[str]:
+def detect_container_runtime() -> str | None:
     """Detect available container runtime (podman or docker).
 
     Returns:
@@ -43,10 +44,7 @@ def get_compose_file() -> Path:
         return compose_file
 
     # Offer to create a default compose file
-    logger.info(
-        "No postgres-compose.yml found in current directory. "
-        "Creating a default configuration..."
-    )
+    logger.info("No postgres-compose.yml found in current directory. Creating a default configuration...")
 
     default_compose = """name: docs2db
 
@@ -76,8 +74,7 @@ volumes:
         return compose_file
     except Exception as e:
         raise Docs2DBException(
-            f"Could not create postgres-compose.yml: {e}. "
-            f"Please create one manually or ensure write permissions."
+            f"Could not create postgres-compose.yml: {e}. Please create one manually or ensure write permissions."
         ) from e
 
 
@@ -106,8 +103,7 @@ def get_project_name_from_compose(compose_file: Path) -> str:
                 return name
 
     raise Docs2DBException(
-        f"No 'name:' field found in compose file: {compose_file}. "
-        f"Please add a project name to the compose file."
+        f"No 'name:' field found in compose file: {compose_file}. Please add a project name to the compose file."
     )
 
 
@@ -149,7 +145,7 @@ def start_database(profile: str = "prod") -> bool:
             "-d",
         ]
 
-        result = subprocess.run(
+        result = subprocess.run(  # noqa: S603 -- cmd is constructed from validated config values, not user input
             cmd,
             capture_output=True,
             text=True,
@@ -186,9 +182,7 @@ def stop_database(profile: str = "prod") -> bool:
     runtime = detect_container_runtime()
 
     if not runtime:
-        raise Docs2DBException(
-            "Neither Podman nor Docker found. Cannot stop database."
-        )
+        raise Docs2DBException("Neither Podman nor Docker found. Cannot stop database.")
 
     compose_file = get_compose_file()
 
@@ -205,7 +199,7 @@ def stop_database(profile: str = "prod") -> bool:
             "down",
         ]
 
-        result = subprocess.run(
+        result = subprocess.run(  # noqa: S603 -- cmd is constructed from validated config values, not user input
             cmd,
             capture_output=True,
             text=True,
@@ -242,9 +236,7 @@ def destroy_database(profile: str = "prod") -> bool:
     runtime = detect_container_runtime()
 
     if not runtime:
-        raise Docs2DBException(
-            "Neither Podman nor Docker found. Cannot destroy database."
-        )
+        raise Docs2DBException("Neither Podman nor Docker found. Cannot destroy database.")
 
     compose_file = get_compose_file()
 
@@ -265,7 +257,7 @@ def destroy_database(profile: str = "prod") -> bool:
 
         cmd = [runtime, "volume", "rm", volume_name]
 
-        result = subprocess.run(
+        result = subprocess.run(  # noqa: S603 -- cmd is constructed from validated config values, not user input
             cmd,
             capture_output=True,
             text=True,
@@ -321,7 +313,7 @@ def get_database_logs(follow: bool = False) -> bool:
         cmd.append("db")
 
         # For logs, we want to show output directly to user
-        subprocess.run(cmd, check=True)
+        subprocess.run(cmd, check=True)  # noqa: S603 -- cmd is constructed from validated config values, not user input
 
         return True
 
@@ -332,4 +324,3 @@ def get_database_logs(follow: bool = False) -> bool:
         # Normal exit when following logs
         logger.info("\nStopped viewing logs")
         return True
-

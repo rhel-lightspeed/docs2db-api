@@ -2,9 +2,8 @@
 
 import os
 
-import pytest
-
-from docs2db_api.rag.engine import DEFAULT_RAG_SETTINGS, RAGConfig
+from docs2db_api.rag.engine import DEFAULT_RAG_SETTINGS
+from docs2db_api.rag.engine import RAGConfig
 
 
 class TestRAGConfig:
@@ -152,9 +151,7 @@ class TestSettingsHierarchyLogic:
         default_value = 0.7
 
         # Priority: CLI > DB > default
-        result = cli_value if cli_value is not None else (
-            db_value if db_value is not None else default_value
-        )
+        result = cli_value if cli_value is not None else (db_value if db_value is not None else default_value)
 
         assert result == 0.95
 
@@ -165,9 +162,7 @@ class TestSettingsHierarchyLogic:
         db_value = 0.85
         default_value = 0.7
 
-        result = cli_value if cli_value is not None else (
-            db_value if db_value is not None else default_value
-        )
+        result = cli_value if cli_value is not None else (db_value if db_value is not None else default_value)
 
         assert result == 0.85
 
@@ -177,9 +172,7 @@ class TestSettingsHierarchyLogic:
         db_value = None
         default_value = 0.7
 
-        result = cli_value if cli_value is not None else (
-            db_value if db_value is not None else default_value
-        )
+        result = cli_value if cli_value is not None else (db_value if db_value is not None else default_value)
 
         assert result == 0.7
 
@@ -191,9 +184,7 @@ class TestSettingsHierarchyLogic:
         default_value = 0.7
 
         # If 0 is set explicitly, it should be used
-        result = cli_value if cli_value is not None else (
-            db_value if db_value is not None else default_value
-        )
+        result = cli_value if cli_value is not None else (db_value if db_value is not None else default_value)
 
         assert result == 0
 
@@ -204,9 +195,7 @@ class TestSettingsHierarchyLogic:
         db_value = True
         default_value = True
 
-        result = cli_value if cli_value is not None else (
-            db_value if db_value is not None else default_value
-        )
+        result = cli_value if cli_value is not None else (db_value if db_value is not None else default_value)
 
         assert result is False
 
@@ -235,4 +224,3 @@ class TestRAGResultStructure:
         assert result.documents == []
         assert result.refined_questions is None
         assert result.metadata == {}
-

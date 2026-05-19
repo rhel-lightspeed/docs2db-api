@@ -1,12 +1,15 @@
 """Embedding models and generation logic for query lookup."""
 
-from typing import Any, Dict, List
+from typing import Any
 
 import structlog
 import torch
-from transformers import AutoModel, AutoTokenizer
+
+from transformers import AutoModel
+from transformers import AutoTokenizer
 
 from docs2db_api.config import settings
+
 
 logger = structlog.get_logger(__name__)
 
@@ -32,14 +35,14 @@ def move_to_device(model_or_tensor, device: str):
 class EmbeddingProvider:
     """Base class for embedding providers."""
 
-    def __init__(self, model_name: str, config: Dict[str, Any], device: str):
+    def __init__(self, model_name: str, config: dict[str, Any], device: str):
         self.model_name = model_name
         self.config = config
         self.model = model_name  # Full model identifier (e.g., "ibm-granite/granite-embedding-30m-english")
         self.dimensions = config["dimensions"]
         self.device = device
 
-    def generate_embeddings(self, texts: List[str]) -> List[List[float]]:
+    def generate_embeddings(self, texts: list[str]) -> list[list[float]]:
         """Generate embeddings for a list of texts."""
         raise NotImplementedError
 
@@ -47,7 +50,7 @@ class EmbeddingProvider:
 class GraniteEmbeddingProvider(EmbeddingProvider):
     """Granite embedding provider using CLS token pooling."""
 
-    def __init__(self, model_name: str, config: Dict[str, Any], device: str):
+    def __init__(self, model_name: str, config: dict[str, Any], device: str):
         super().__init__(model_name, config, device)
         self._model = None
         self._tokenizer = None
@@ -57,18 +60,12 @@ class GraniteEmbeddingProvider(EmbeddingProvider):
         if self._model is None or self._tokenizer is None:
             # Set MPS memory limits to prevent memory leaks
             if self.device == "mps":
-                torch.mps.set_per_process_memory_fraction(
-                    0.4
-                )  # Limit to 40% of memory per worker
+                torch.mps.set_per_process_memory_fraction(0.4)  # Limit to 40% of memory per worker
 
             try:
                 offline = settings.embedding.offline
-                self._model = AutoModel.from_pretrained(
-                    self.model, local_files_only=offline
-                )
-                self._tokenizer = AutoTokenizer.from_pretrained(
-                    self.model, local_files_only=offline
-                )
+                self._model = AutoModel.from_pretrained(self.model, local_files_only=offline)
+                self._tokenizer = AutoTokenizer.from_pretrained(self.model, local_files_only=offline)
             except Exception as e:
                 if settings.embedding.offline:
                     raise ValueError(
@@ -87,7 +84,7 @@ class GraniteEmbeddingProvider(EmbeddingProvider):
 
         return self._model, self._tokenizer
 
-    def generate_embeddings(self, texts: List[str]) -> List[List[float]]:
+    def generate_embeddings(self, texts: list[str]) -> list[list[float]]:
         """Generate embeddings using Granite model with CLS pooling."""
         model, tokenizer = self._get_model_and_tokenizer()
 

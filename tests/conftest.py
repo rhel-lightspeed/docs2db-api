@@ -1,6 +1,7 @@
 """Pytest fixtures and configuration for docs2db-api tests."""
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -9,14 +10,14 @@ import pytest
 def mock_db_manager():
     """Mock DatabaseManager for testing without PostgreSQL."""
     manager = AsyncMock()
-    
+
     # Mock connection context manager
     conn_mock = AsyncMock()
     conn_mock.__aenter__ = AsyncMock(return_value=conn_mock)
     conn_mock.__aexit__ = AsyncMock(return_value=None)
-    
+
     manager.get_direct_connection.return_value = conn_mock
-    
+
     return manager
 
 
@@ -32,11 +33,13 @@ def mock_embedding_provider():
 def mock_llm_client():
     """Mock LLM client for query refinement testing."""
     client = MagicMock()
-    client.refine_query = AsyncMock(return_value=[
-        "What is X?",
-        "How does X work?",
-        "Where is X used?",
-    ])
+    client.refine_query = AsyncMock(
+        return_value=[
+            "What is X?",
+            "How does X work?",
+            "Where is X used?",
+        ]
+    )
     return client
 
 
@@ -73,4 +76,3 @@ def sample_search_results():
             "similarity_score": 0.85,
         },
     ]
-

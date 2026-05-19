@@ -1,9 +1,11 @@
 """Reranker implementation for improving search result quality."""
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import structlog
+
 from sentence_transformers import CrossEncoder
+
 
 logger = structlog.get_logger(__name__)
 
@@ -11,7 +13,7 @@ logger = structlog.get_logger(__name__)
 class Reranker:
     """
     Reranker that uses a cross-encoder model to reorder search results.
-    
+
     Cross-encoders jointly encode query and document, providing more accurate
     relevance scores than bi-encoders (embedding models) which encode separately.
     """
@@ -19,7 +21,7 @@ class Reranker:
     def __init__(self, model_name: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"):
         """
         Initialize the reranker.
-        
+
         Args:
             model_name: HuggingFace model name for the cross-encoder.
                        Default is a fast, accurate model trained on MS MARCO.
@@ -38,9 +40,9 @@ class Reranker:
     def rerank(
         self,
         query: str,
-        documents: List[Dict[str, Any]],
-        top_k: Optional[int] = None,
-    ) -> List[Dict[str, Any]]:
+        documents: list[dict[str, Any]],
+        top_k: int | None = None,
+    ) -> list[dict[str, Any]]:
         """
         Rerank documents based on their relevance to the query.
 
@@ -62,7 +64,7 @@ class Reranker:
         scores = self.model.predict(pairs)
 
         # Add rerank scores to documents
-        for doc, score in zip(documents, scores, strict=False):
+        for doc, score in zip(documents, scores):
             doc["rerank_score"] = float(score)
 
         # Sort by rerank score (descending)
@@ -94,4 +96,3 @@ def get_reranker(model_name: str = "cross-encoder/ms-marco-MiniLM-L-6-v2") -> Re
     if _default_reranker is None or _default_reranker.model_name != model_name:
         _default_reranker = Reranker(model_name)
     return _default_reranker
-

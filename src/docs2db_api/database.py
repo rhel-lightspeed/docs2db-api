@@ -1,30 +1,31 @@
 """Database operations for loading embeddings and chunks into PostgreSQL with pgvector."""
 
-import asyncio
 import json
 import logging
 import os
 import subprocess
-import time
-import warnings
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional, Tuple
 
-import psutil
+from datetime import datetime
+from datetime import UTC
+from pathlib import Path
+from typing import Any
+
 import psycopg
 import structlog
 import yaml
-from psycopg.sql import SQL, Identifier
+
+from psycopg.sql import Identifier
+from psycopg.sql import SQL
 
 from docs2db_api.config import settings
-from docs2db_api.embeddings import EMBEDDING_CONFIGS
-from docs2db_api.exceptions import ConfigurationError, ContentError, DatabaseError
+from docs2db_api.exceptions import ConfigurationError
+from docs2db_api.exceptions import DatabaseError
+
 
 logger = structlog.get_logger()
 
 
-def get_db_config() -> Dict[str, str]:
+def get_db_config() -> dict[str, str]:
     """Get database connection parameters from Pydantic settings.
 
     Configuration precedence (highest to lowest):
@@ -77,9 +78,7 @@ def get_db_config() -> Dict[str, str]:
                     else:
                         config["host"] = host_port
                 else:
-                    raise ConfigurationError(
-                        f"Invalid DOCS2DB_DB_URL format (missing @): {database_url}"
-                    )
+                    raise ConfigurationError(f"Invalid DOCS2DB_DB_URL format (missing @): {database_url}")
             else:
                 raise ConfigurationError(
                     f"Invalid DOCS2DB_DB_URL scheme. Expected postgresql:// or postgres://, "
@@ -89,15 +88,14 @@ def get_db_config() -> Dict[str, str]:
             raise
         except Exception as e:
             raise ConfigurationError(
-                f"Failed to parse DOCS2DB_DB_URL: {e}. "
-                f"Expected format: postgresql://user:password@host:port/database"
+                f"Failed to parse DOCS2DB_DB_URL: {e}. Expected format: postgresql://user:password@host:port/database"
             ) from e
 
     # Check for postgres-compose.yml (lowest priority, only if using defaults)
     compose_file = Path.cwd() / "postgres-compose.yml"
     if compose_file.exists():
         try:
-            with open(compose_file, "r") as f:
+            with open(compose_file) as f:
                 compose_data = yaml.safe_load(f)
 
             db_service = compose_data.get("services", {}).get("db", {})
@@ -108,7 +106,7 @@ def get_db_config() -> Dict[str, str]:
                 config["database"] = env["POSTGRES_DB"]
             if config["user"] == "postgres" and "POSTGRES_USER" in env:
                 config["user"] = env["POSTGRES_USER"]
-            if config["password"] == "postgres" and "POSTGRES_PASSWORD" in env:
+            if config["password"] == "postgres" and "POSTGRES_PASSWORD" in env:  # noqa: S105 -- "postgres" is the default placeholder, not a real password
                 config["password"] = env["POSTGRES_PASSWORD"]
 
             # Extract port from ports mapping if available
@@ -162,9 +160,9 @@ class DatabaseManager:
 
     def _convert_timestamp(self, unix_timestamp: float):
         """Convert Unix timestamp to datetime object for PostgreSQL."""
-        return datetime.fromtimestamp(unix_timestamp, tz=timezone.utc)
+        return datetime.fromtimestamp(unix_timestamp, tz=UTC)
 
-    async def get_model_id(self, conn, model_name: str) -> Optional[int]:
+    async def get_model_id(self, conn, model_name: str) -> int | None:
         """Get model ID by name."""
         result = await conn.execute(
             "SELECT id FROM models WHERE name = %s",
@@ -173,7 +171,7 @@ class DatabaseManager:
         row = await result.fetchone()
         return row[0] if row else None
 
-    async def get_stats(self) -> Dict[str, Any]:
+    async def get_stats(self) -> dict[str, Any]:
         """Get database statistics."""
         async with await self.get_direct_connection() as conn:
             # Document stats
@@ -210,9 +208,9 @@ class DatabaseManager:
                 "embedding_models": embedding_models,
             }
 
-    async def get_rag_settings(self) -> Optional[Dict[str, Any]]:
+    async def get_rag_settings(self) -> dict[str, Any] | None:
         """Get RAG settings from the database.
-        
+
         Returns:
             Dictionary with RAG settings, or None if no settings exist
         """
@@ -227,10 +225,10 @@ class DatabaseManager:
                     """
                 )
                 row = await result.fetchone()
-                
+
                 if row is None:
                     return None
-                
+
                 return {
                     "refinement_prompt": row[0],
                     "enable_refinement": row[1],
@@ -240,7 +238,7 @@ class DatabaseManager:
                     "max_tokens_in_context": row[5],
                     "refinement_questions_count": row[6],
                 }
-            except Exception as e:
+            except Exception as e:  # TODO: RSPEED-3061 — narrow to psycopg.errors.UndefinedTable
                 logger.warning(f"Could not retrieve RAG settings: {e}")
                 return None
 
@@ -281,11 +279,11 @@ class DatabaseManager:
 
     async def search_vector(
         self,
-        query_embedding: List[float],
+        query_embedding: list[float],
         model_name: str,
         limit: int = 10,
         similarity_threshold: float = 0.7,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Search for similar chunks using vector similarity (pure semantic search)."""
         async with await self.get_direct_connection() as conn:
             # Get model_id from model name (which is the full model identifier)
@@ -329,22 +327,21 @@ class DatabaseManager:
 
                 # Handle metadata - it might be a dict already or a JSON string
                 if metadata_json:
-                    if isinstance(metadata_json, str):
-                        metadata = json.loads(metadata_json)
-                    else:
-                        metadata = metadata_json
+                    metadata = json.loads(metadata_json) if isinstance(metadata_json, str) else metadata_json
                 else:
                     metadata = {}
 
-                similar_chunks.append({
-                    "text": text,
-                    "metadata": metadata,
-                    "document_path": doc_path,
-                    "document_filename": filename,
-                    "chunk_index": chunk_index,
-                    "distance": float(distance),
-                    "similarity": float(similarity),
-                })
+                similar_chunks.append(
+                    {
+                        "text": text,
+                        "metadata": metadata,
+                        "document_path": doc_path,
+                        "document_filename": filename,
+                        "chunk_index": chunk_index,
+                        "distance": float(distance),
+                        "similarity": float(similarity),
+                    }
+                )
 
             return similar_chunks
 
@@ -352,7 +349,7 @@ class DatabaseManager:
         self,
         query_text: str,
         limit: int = 10,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Search for chunks using BM25 full-text search (pure lexical search)."""
         async with await self.get_direct_connection() as conn:
             results = await conn.execute(
@@ -379,36 +376,35 @@ class DatabaseManager:
 
                 # Handle metadata
                 if metadata_json:
-                    if isinstance(metadata_json, str):
-                        metadata = json.loads(metadata_json)
-                    else:
-                        metadata = metadata_json
+                    metadata = json.loads(metadata_json) if isinstance(metadata_json, str) else metadata_json
                 else:
                     metadata = {}
 
-                bm25_chunks.append({
-                    "text": text,
-                    "metadata": metadata,
-                    "document_path": doc_path,
-                    "document_filename": filename,
-                    "chunk_index": chunk_index,
-                    "bm25_rank": float(rank),
-                })
+                bm25_chunks.append(
+                    {
+                        "text": text,
+                        "metadata": metadata,
+                        "document_path": doc_path,
+                        "document_filename": filename,
+                        "chunk_index": chunk_index,
+                        "bm25_rank": float(rank),
+                    }
+                )
 
             return bm25_chunks
 
     async def search_hybrid(
         self,
-        query_embedding: List[float],
+        query_embedding: list[float],
         query_text: str,
         model_name: str,
         limit: int = 10,
         similarity_threshold: float = 0.7,
         rrf_k: int = 60,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Search using hybrid approach: vector similarity + BM25 with Reciprocal Rank Fusion.
-        
+
         This is the primary search method - combining semantic and lexical search.
         """
         async with await self.get_direct_connection() as conn:
@@ -484,7 +480,7 @@ class DatabaseManager:
                 FROM combined
                 ORDER BY rrf_score DESC
                 LIMIT %s
-                """,
+                """,  # noqa: E501
                 (
                     # vector_results params
                     query_embedding,
@@ -513,23 +509,22 @@ class DatabaseManager:
 
                 # Handle metadata
                 if metadata_json:
-                    if isinstance(metadata_json, str):
-                        metadata = json.loads(metadata_json)
-                    else:
-                        metadata = metadata_json
+                    metadata = json.loads(metadata_json) if isinstance(metadata_json, str) else metadata_json
                 else:
                     metadata = {}
 
-                hybrid_chunks.append({
-                    "text": text,
-                    "metadata": metadata,
-                    "document_path": doc_path,
-                    "document_filename": filename,
-                    "chunk_index": chunk_index,
-                    "similarity": float(similarity) if similarity is not None else None,
-                    "bm25_rank": float(bm25_rank) if bm25_rank is not None else None,
-                    "rrf_score": float(rrf_score),
-                })
+                hybrid_chunks.append(
+                    {
+                        "text": text,
+                        "metadata": metadata,
+                        "document_path": doc_path,
+                        "document_filename": filename,
+                        "chunk_index": chunk_index,
+                        "similarity": float(similarity) if similarity is not None else None,
+                        "bm25_rank": float(bm25_rank) if bm25_rank is not None else None,
+                        "rrf_score": float(rrf_score),
+                    }
+                )
 
             return hybrid_chunks
 
@@ -544,11 +539,7 @@ class DatabaseManager:
         lines.append(f"\nUpdate #{change_data['id']}:")
 
         # Timestamp (always show)
-        timestamp = (
-            change_data["changed_at"].strftime("%Y-%m-%d %H:%M")
-            if change_data["changed_at"]
-            else "Unknown"
-        )
+        timestamp = change_data["changed_at"].strftime("%Y-%m-%d %H:%M") if change_data["changed_at"] else "Unknown"
         lines.append(f"  Timestamp      : {timestamp}")
 
         # User (only if set)
@@ -594,11 +585,11 @@ class DatabaseManager:
 
 
 async def check_database_status(
-    host: Optional[str] = None,
-    port: Optional[int] = None,
-    db: Optional[str] = None,
-    user: Optional[str] = None,
-    password: Optional[str] = None,
+    host: str | None = None,
+    port: int | None = None,
+    db: str | None = None,
+    user: str | None = None,
+    password: str | None = None,
 ) -> None:
     """Check database connectivity and display statistics."""
     db_defaults = get_db_config()
@@ -609,11 +600,7 @@ async def check_database_status(
     password = password if password is not None else db_defaults["password"]
 
     logger.info(
-        "\nCheck database status:\n"
-        f"  Host    : {host}\n"
-        f"  Port    : {port}\n"
-        f"  Database: {db}\n"
-        f"  user    : {user}"
+        f"\nCheck database status:\n  Host    : {host}\n  Port    : {port}\n  Database: {db}\n  user    : {user}"
     )
 
     # Suppress psycopg connection warnings for cleaner error messages
@@ -630,13 +617,9 @@ async def check_database_status(
     # Section 1: Test basic PostgreSQL server connectivity
     try:
         # First try a direct connection to catch auth errors immediately
-        basic_connection_string = (
-            f"postgresql://{user}:{password}@{host}:{port}/postgres"
-        )
+        basic_connection_string = f"postgresql://{user}:{password}@{host}:{port}/postgres"
 
-        async with await psycopg.AsyncConnection.connect(
-            basic_connection_string, connect_timeout=5
-        ) as conn:
+        async with await psycopg.AsyncConnection.connect(basic_connection_string, connect_timeout=5) as conn:
             # Test basic connectivity
             result = await conn.execute("SELECT version(), now()")
             row = await result.fetchone()
@@ -681,18 +664,13 @@ async def check_database_status(
 
     # Check for pgvector extension
     async with await db_manager.get_direct_connection() as conn:
-        ext_result = await conn.execute(
-            "SELECT extname, extversion FROM pg_extension WHERE extname = 'vector'"
-        )
+        ext_result = await conn.execute("SELECT extname, extversion FROM pg_extension WHERE extname = 'vector'")
         ext_row = await ext_result.fetchone()
         if ext_row:
             _ext_name, ext_version = ext_row
             logger.info(f"pgvector extension found: version={ext_version}")
         else:
-            logger.error(
-                "pgvector extension not installed. "
-                "Run 'uv run docs2db load' to initialize"
-            )
+            logger.error("pgvector extension not installed. Run 'uv run docs2db load' to initialize")
             raise DatabaseError("pgvector extension not installed")
 
     # Check if tables exist
@@ -711,22 +689,16 @@ async def check_database_status(
         if len(tables) == 3:
             logger.info("All required tables exist")
         elif len(tables) > 0:
-            logger.error(
-                "Partial schema found. Run 'uv run docs2db load' to initialize"
-            )
+            logger.error("Partial schema found. Run 'uv run docs2db load' to initialize")
             raise DatabaseError("Partial schema found")
         else:
-            logger.error(
-                "No docs2db tables found. Run 'uv run docs2db load' to initialize"
-            )
+            logger.error("No docs2db tables found. Run 'uv run docs2db load' to initialize")
             raise DatabaseError("No docs2db tables found")
 
     # Get database statistics
     stats = await db_manager.get_stats()
 
-    total_embeddings = sum(
-        model_info["count"] for model_info in stats["embedding_models"].values()
-    )
+    total_embeddings = sum(model_info["count"] for model_info in stats["embedding_models"].values())
 
     logger.info(
         "\nDatabase statistics summary:\n"
@@ -748,9 +720,7 @@ async def check_database_status(
     # Display schema metadata if available
     async with await db_manager.get_direct_connection() as conn:
         try:
-            metadata_result = await conn.execute(
-                "SELECT * FROM schema_metadata WHERE id = 1"
-            )
+            metadata_result = await conn.execute("SELECT * FROM schema_metadata WHERE id = 1")
             metadata_row = await metadata_result.fetchone()
             if metadata_row and metadata_result.description:
                 columns = [desc[0] for desc in metadata_result.description]
@@ -762,9 +732,9 @@ async def check_database_status(
                     f"  Title          : {metadata['title'] or '(not set)'}\n"
                     f"  Description    : {metadata['description'] or '(not set)'}\n"
                     f"  Models         : {metadata['embedding_models_count']}\n"
-                    f"  Last modified  : {metadata['last_modified_at'].strftime('%Y-%m-%d %H:%M') if metadata['last_modified_at'] else 'Unknown'}"
+                    f"  Last modified  : {metadata['last_modified_at'].strftime('%Y-%m-%d %H:%M') if metadata['last_modified_at'] else 'Unknown'}"  # noqa: E501
                 )
-        except Exception:
+        except Exception:  # noqa: S110 — TODO: RSPEED-3061 — narrow to psycopg.errors.UndefinedTable
             # Schema metadata table doesn't exist yet
             pass
 
@@ -802,7 +772,7 @@ async def check_database_status(
                 logger.info("\nRecent Changes (last 5):")
                 for change_data in changes:
                     logger.info(db_manager.format_schema_change_display(change_data))
-        except Exception:
+        except Exception:  # noqa: S110 — TODO: RSPEED-3061 — narrow to psycopg.errors.UndefinedTable
             # Schema changes table doesn't exist yet
             pass
 
@@ -824,14 +794,12 @@ async def check_database_status(
                 path, created_at, updated_at = row
                 # Strip /source.json suffix for cleaner display
                 display_path = path.removesuffix("/source.json")
-                file_str += f"  {display_path}\n    created: {created_at.strftime('%Y-%m-%d %H:%M')}\n    updated: {updated_at.strftime('%Y-%m-%d %H:%M') if updated_at else 'Never'}\n"
+                file_str += f"  {display_path}\n    created: {created_at.strftime('%Y-%m-%d %H:%M')}\n    updated: {updated_at.strftime('%Y-%m-%d %H:%M') if updated_at else 'Never'}\n"  # noqa: E501
             logger.info(f"\nRecent document activity (last 5)\n{file_str}")
 
         # Database size information
         async with await db_manager.get_direct_connection() as conn:
-            size_result = await conn.execute(
-                "SELECT pg_size_pretty(pg_database_size(%s)) as db_size", (db,)
-            )
+            size_result = await conn.execute("SELECT pg_size_pretty(pg_database_size(%s)) as db_size", (db,))
             size_row = await size_result.fetchone()
             if size_row:
                 db_size = size_row[0]
@@ -860,16 +828,14 @@ async def check_database_status(
             if len(rag_settings["refinement_prompt"]) > 100:
                 prompt_preview += "..."
             settings_lines.append(f"  refinement_prompt         : {prompt_preview}")
-        
+
         if settings_lines:
             logger.info("\nRAG settings:\n" + "\n".join(settings_lines))
 
     logger.info("Database status check complete")
 
 
-async def _ensure_database_exists(
-    host: str, port: int, db: str, user: str, password: str
-) -> None:
+async def _ensure_database_exists(host: str, port: int, db: str, user: str, password: str) -> None:
     """Ensure the target database exists, create it if it doesn't."""
 
     # Connect to the default postgres database to check/create our target database
@@ -882,9 +848,7 @@ async def _ensure_database_exists(
             autocommit=True,  # Needed for CREATE DATABASE
         ) as conn:
             # Check if our target database exists
-            result = await conn.execute(
-                "SELECT 1 FROM pg_database WHERE datname = %s", (db,)
-            )
+            result = await conn.execute("SELECT 1 FROM pg_database WHERE datname = %s", (db,))
             db_exists = await result.fetchone()
 
             if not db_exists:
@@ -901,11 +865,11 @@ async def _ensure_database_exists(
 
 def restore_database(
     input_file: str,
-    host: Optional[str] = None,
-    port: Optional[int] = None,
-    db: Optional[str] = None,
-    user: Optional[str] = None,
-    password: Optional[str] = None,
+    host: str | None = None,
+    port: int | None = None,
+    db: str | None = None,
+    user: str | None = None,
+    password: str | None = None,
     verbose: bool = False,
 ) -> bool:
     """Restore a PostgreSQL database from a dump file.
@@ -963,7 +927,7 @@ def restore_database(
         logger.info("Restoring database from dump...")
 
         # Run psql
-        subprocess.run(
+        subprocess.run(  # noqa: S603 -- cmd is constructed from validated config values, not user input
             cmd,
             env=env,
             capture_output=not verbose,
@@ -978,22 +942,18 @@ def restore_database(
         logger.error(f"psql failed with exit code {e.returncode}")
         if e.stderr:
             logger.error(f"Error: {e.stderr}")
-        raise DatabaseError(
-            f"Database restore failed with exit code {e.returncode}"
-        ) from e
+        raise DatabaseError(f"Database restore failed with exit code {e.returncode}") from e
     except FileNotFoundError as e:
-        raise ConfigurationError(
-            "psql command not found. Please install PostgreSQL client tools."
-        ) from e
+        raise ConfigurationError("psql command not found. Please install PostgreSQL client tools.") from e
 
 
 async def generate_manifest(
     output_file: str = "manifest.txt",
-    host: Optional[str] = None,
-    port: Optional[int] = None,
-    db: Optional[str] = None,
-    user: Optional[str] = None,
-    password: Optional[str] = None,
+    host: str | None = None,
+    port: int | None = None,
+    db: str | None = None,
+    user: str | None = None,
+    password: str | None = None,
 ) -> bool:
     """Generate a manifest file with all unique source files in the database.
 
