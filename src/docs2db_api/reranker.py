@@ -64,7 +64,7 @@ class Reranker:
         scores = self.model.predict(pairs)
 
         # Add rerank scores to documents
-        for doc, score in zip(documents, scores, strict=False):
+        for doc, score in zip(documents, scores):
             doc["rerank_score"] = float(score)
 
         # Sort by rerank score (descending)

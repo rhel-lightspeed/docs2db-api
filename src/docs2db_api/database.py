@@ -724,7 +724,7 @@ async def check_database_status(
             metadata_row = await metadata_result.fetchone()
             if metadata_row and metadata_result.description:
                 columns = [desc[0] for desc in metadata_result.description]
-                metadata = dict(zip(columns, metadata_row, strict=False))
+                metadata = dict(zip(columns, metadata_row))
 
                 logger.info(
                     "\nSchema Metadata:\n"
@@ -765,7 +765,7 @@ async def check_database_status(
             async for row in changes_result:
                 if changes_result.description:
                     columns = [desc[0] for desc in changes_result.description]
-                    change_data = dict(zip(columns, row, strict=False))
+                    change_data = dict(zip(columns, row))
                     changes.append(change_data)
 
             if changes:
