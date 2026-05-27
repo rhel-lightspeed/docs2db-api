@@ -480,7 +480,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "cachetools", specifier = ">=6.2.6" },
+    { name = "cachetools", specifier = ">=7.1.3" },
     { name = "docling", specifier = ">=2.94.0" },
     { name = "fastapi", specifier = ">=0.136.1" },
     { name = "httpx", specifier = ">=0.28.1" },
@@ -490,7 +490,7 @@ requires-dist = [
     { name = "pydantic-settings", specifier = ">=2.14.1" },
     { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "rich", specifier = ">=15.0.0" },
-    { name = "sentence-transformers", specifier = ">=3.4.1" },
+    { name = "sentence-transformers", specifier = ">=5.5.1" },
     { name = "structlog", specifier = ">=25.5.0" },
     { name = "torch", specifier = ">=2.7.1", index = "https://download.pytorch.org/whl/cpu" },
     { name = "torchvision", specifier = ">=0.22.1", index = "https://download.pytorch.org/whl/cpu" },
@@ -502,17 +502,17 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "datamodel-code-generator", specifier = ">=0.57.0" },
-    { name = "greenlet", specifier = ">=3.5.0" },
+    { name = "greenlet", specifier = ">=3.5.1" },
     { name = "ipython", specifier = ">=9.13.0" },
     { name = "pre-commit", specifier = ">=4.6.0" },
     { name = "pyright", specifier = ">=1.1.409" },
-    { name = "pytest", specifier = ">=8.4.2" },
-    { name = "pytest-asyncio", specifier = ">=0.26.0" },
-    { name = "pytest-cov", specifier = ">=6.3.0" },
+    { name = "pytest", specifier = ">=9.0.3" },
+    { name = "pytest-asyncio", specifier = ">=1.3.0" },
+    { name = "pytest-cov", specifier = ">=7.1.0" },
     { name = "pytest-httpx", specifier = ">=0.36.2" },
     { name = "pytest-randomly", specifier = ">=4.1.0" },
     { name = "pytest-sugar", specifier = ">=1.1.1" },
-    { name = "python-gitlab", specifier = ">=6.5.0" },
+    { name = "python-gitlab", specifier = ">=8.3.0" },
     { name = "ruff", specifier = ">=0.15.13" },
     { name = "tox", specifier = ">=4.54.0" },
     { name = "types-cachetools", specifier = ">=7.0.0.20260518" },
