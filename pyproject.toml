@@ -42,8 +42,8 @@ dependencies = [
     "sentence-transformers>=5.5.1",
     "tqdm>=4.67.3",
     "xxhash>=3.7.0",
-    "fastapi>=0.136.1",
-    "uvicorn>=0.47.0",
+    "fastapi>=0.136.3",
+    "uvicorn>=0.48.0",
 ]
 
 [project.scripts]

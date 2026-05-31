@@ -482,7 +482,7 @@ dev = [
 requires-dist = [
     { name = "cachetools", specifier = ">=7.1.4" },
     { name = "docling", specifier = ">=2.95.0" },
-    { name = "fastapi", specifier = ">=0.136.1" },
+    { name = "fastapi", specifier = ">=0.136.3" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "pgvector", specifier = ">=0.4.2" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.3.4" },
@@ -495,7 +495,7 @@ requires-dist = [
     { name = "torch", specifier = ">=2.7.1", index = "https://download.pytorch.org/whl/cpu" },
     { name = "torchvision", specifier = ">=0.22.1", index = "https://download.pytorch.org/whl/cpu" },
     { name = "tqdm", specifier = ">=4.67.3" },
-    { name = "uvicorn", specifier = ">=0.47.0" },
+    { name = "uvicorn", specifier = ">=0.48.0" },
     { name = "xxhash", specifier = ">=3.7.0" },
 ]
 
