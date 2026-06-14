@@ -7,18 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-06-14
+
 ### Added
 - Pre-commit hooks (ruff, ruff-format, pyright, gitleaks)
 - CI workflow for lint, format, type checking, and tests
-- `test-ci` Makefile target for CI-safe test runs
+- Renovate for automated dependency management
 
 ### Changed
-- Deferred heavy imports (`torch`, `transformers`, `sentence_transformers`) to first use, reducing CLI startup time for non-RAG commands (e.g., `db-status`, `db-start`)
-- Scoped Makefile `lint` and `format` targets to `src/ tests/ demos/`
+- Deferred heavy imports (`torch`, `transformers`, `sentence_transformers`) to first use, reducing CLI startup time for non-RAG commands
+- Auto-detect TTY for structlog console colors
+- Replaced assert statements with proper guards; narrowed broad except clauses
+- Code hardening fixes across codebase
+- Updated dependencies including `rich` v15 and `pytest` v9.0.3 (security fix)
+
+### Fixed
+- **BFloat16 numpy conversion**: Cast embeddings to float32 before numpy conversion, fixing `ScalarType BFloat16` errors on platforms that default to BFloat16 tensors
+- Reject malformed boolean environment variable values with clear error messages
 
 ### Removed
-- Removed LlamaStack adapter (`llama_stack.py`) and demos — use [docs2db-mcp-server](https://github.com/rhel-lightspeed/docs2db-mcp-server) for MCP-based tool integration with any LLM framework
-- Removed `llama-stack` optional dependency
+- LlamaStack adapter (`llama_stack.py`) and demos — use [docs2db-mcp-server](https://github.com/rhel-lightspeed/docs2db-mcp-server) for MCP-based tool integration
+- `llama-stack` optional dependency
 
 ## [0.3.1] - 2026-01-21
 
@@ -103,7 +112,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 See [LICENSE](LICENSE) for details.
 
-[Unreleased]: https://github.com/rhel-lightspeed/docs2db-api/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/rhel-lightspeed/docs2db-api/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/rhel-lightspeed/docs2db-api/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/rhel-lightspeed/docs2db-api/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/rhel-lightspeed/docs2db-api/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/rhel-lightspeed/docs2db-api/compare/v0.1.0...v0.2.0
