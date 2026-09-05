@@ -27,23 +27,23 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
-    "cachetools>=7.1.4",
-    "docling>=2.96.1",
+    "cachetools>=7.1.7",
+    "docling>=2.123.1",
     "httpx>=0.28.1",
-    "pgvector>=0.4.2",
+    "pgvector>=0.5.0",
     "psycopg[binary]>=3.3.4",
     "psycopg-pool>=3.3.1",
     "pydantic-settings>=2.14.1",
     "pyyaml>=6.0.3",
     "rich>=15.0.0",
-    "structlog>=25.5.0",
+    "structlog>=26.1.0",
     "torch>=2.7.1",
     "torchvision>=0.22.1",
-    "sentence-transformers>=5.5.1",
-    "tqdm>=4.67.3",
-    "xxhash>=3.7.0",
-    "fastapi>=0.136.3",
-    "uvicorn>=0.48.0",
+    "sentence-transformers>=5.7.0",
+    "tqdm>=4.70.0",
+    "xxhash>=3.8.1",
+    "fastapi>=0.141.1",
+    "uvicorn>=0.52.4",
 ]
 
 [project.scripts]
@@ -57,7 +57,7 @@ Issues = "https://github.com/rhel-lightspeed/docs2db-api/issues"
 Changelog = "https://github.com/rhel-lightspeed/docs2db-api/blob/main/CHANGELOG.md"
 
 [build-system]
-requires = ["uv_build>=0.11.17,<0.11.18"]
+requires = ["uv_build>=0.12.7,<0.12.8"]
 build-backend = "uv_build"
 
 [tool.uv.sources]
@@ -72,21 +72,21 @@ explicit = true
 [dependency-groups]
 dev = [
     "datamodel-code-generator>=0.58.0",
-    "greenlet>=3.5.1",
-    "ipython>=9.14.0",
-    "pre-commit>=4.6.0",
-    "pyright>=1.1.409",
-    "pytest>=9.0.3",
+    "greenlet>=3.5.5",
+    "ipython>=9.17.0",
+    "pre-commit>=4.6.2",
+    "pyright>=1.1.411",
+    "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
     "pytest-cov>=7.1.0",
     "pytest-httpx>=0.36.2",
     "pytest-randomly>=4.1.0",
     "pytest-sugar>=1.1.1",
-    "python-gitlab>=8.4.0",
-    "ruff>=0.15.15",
-    "tox>=4.55.0",
-    "types-cachetools>=7.0.0.20260518",
-    "types-tqdm>=4.67.3.20260518",
+    "python-gitlab>=8.5.0",
+    "ruff>=0.16.5",
+    "tox>=4.61.1",
+    "types-cachetools>=7.0.0.20260713",
+    "types-tqdm>=4.70.0.20260827",
 ]
 
 [tool.pytest.ini_options]
