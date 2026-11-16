@@ -27,7 +27,7 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
-    "cachetools>=7.1.4",
+    "cachetools>=8.0.0",
     "docling>=2.96.1",
     "httpx>=0.28.1",
     "pgvector>=0.4.2",
